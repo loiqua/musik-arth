@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect, useCallback, memo } from 'react';
+import { StyleSheet, TouchableOpacity, View, LayoutChangeEvent, GestureResponderEvent } from 'react-native';
 
 interface SimpleSliderProps {
   value: number;
@@ -28,11 +28,25 @@ const SimpleSlider: React.FC<SimpleSliderProps> = ({
   const [sliding, setSliding] = useState(false);
   const [localValue, setLocalValue] = useState(value);
   
-  // Calculate the position of the thumb
-  const thumbPosition = (localValue - minimumValue) / (maximumValue - minimumValue) * width;
+  // Mettre à jour localValue lorsque la prop value change, mais seulement si l'utilisateur n'est pas en train de faire glisser
+  useEffect(() => {
+    if (!sliding) {
+      setLocalValue(value);
+    }
+  }, [value, sliding]);
   
-  // Handle touch events
-  const handlePress = (event: any) => {
+  // Calculate the position of the thumb
+  const thumbPosition = sliding 
+    ? (localValue - minimumValue) / (maximumValue - minimumValue) * width
+    : (value - minimumValue) / (maximumValue - minimumValue) * width;
+  
+  // Optimiser la fonction handleLayout pour éviter les recréations à chaque rendu
+  const handleLayout = useCallback((event: LayoutChangeEvent) => {
+    setWidth(event.nativeEvent.layout.width);
+  }, []);
+  
+  // Handle touch events - optimisé avec useCallback
+  const handlePress = useCallback((event: GestureResponderEvent) => {
     const { locationX } = event.nativeEvent;
     const newValue = (locationX / width) * (maximumValue - minimumValue) + minimumValue;
     const clampedValue = Math.max(minimumValue, Math.min(maximumValue, newValue));
@@ -41,20 +55,22 @@ const SimpleSlider: React.FC<SimpleSliderProps> = ({
       onSlidingStart();
     }
     
-    setLocalValue(clampedValue);
     setSliding(true);
+    setLocalValue(clampedValue);
     
-    if (onSlidingComplete) {
-      onSlidingComplete(clampedValue);
-    }
-    
-    setSliding(false);
-  };
+    // Utiliser requestAnimationFrame pour améliorer les performances
+    requestAnimationFrame(() => {
+      if (onSlidingComplete) {
+        onSlidingComplete(clampedValue);
+      }
+      setSliding(false);
+    });
+  }, [width, minimumValue, maximumValue, onSlidingStart, onSlidingComplete]);
   
   return (
     <View
       style={[styles.container, style]}
-      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      onLayout={handleLayout}
     >
       {/* Background track */}
       <View
@@ -70,21 +86,20 @@ const SimpleSlider: React.FC<SimpleSliderProps> = ({
           styles.filledTrack,
           {
             backgroundColor: minimumTrackTintColor,
-            width: thumbPosition,
+            width: Math.max(0, thumbPosition),
           }
         ]}
       />
       
       {/* Thumb */}
-      <TouchableOpacity
+      <View
         style={[
           styles.thumb,
           {
             backgroundColor: thumbTintColor,
-            transform: [{ translateX: thumbPosition - 10 }],
+            transform: [{ translateX: Math.max(0, thumbPosition - 10) }],
           }
         ]}
-        onPress={() => {}}
       />
       
       {/* Touch area */}
@@ -124,4 +139,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SimpleSlider; 
+// Utiliser memo pour éviter les rendus inutiles
+export default memo(SimpleSlider); 

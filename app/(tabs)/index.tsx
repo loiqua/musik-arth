@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { BlurView } from 'expo-blur';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Dimensions,
@@ -9,7 +10,6 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from 'react-native';
 import FullPlayer from '../../components/FullPlayer';
@@ -18,6 +18,7 @@ import TrackItem from '../../components/TrackItem';
 import { COLORS, FONTS, LAYOUT, SPACING } from '../../constants/Theme';
 import { Track, useMusicStore } from '../../store/musicStore';
 import { formatTitle, getPlaceholderArtwork } from '../../utils/audioUtils';
+import { useColorScheme } from '../../hooks/useColorScheme';
 
 const { width } = Dimensions.get('window');
 const ALBUM_SIZE = (width - SPACING.large * 2 - SPACING.medium * 2) / 2;
@@ -40,15 +41,13 @@ export default function HomeScreen() {
   } = useMusicStore();
   
   // Request permissions and load tracks when the screen is focused
-  useFocusEffect(
-    React.useCallback(() => {
-      if (!hasPermission) {
-        requestPermissions();
-      } else if (tracks.length === 0) {
-        loadTracks();
-      }
-    }, [hasPermission, tracks.length])
-  );
+  useEffect(() => {
+    if (!hasPermission) {
+      requestPermissions();
+    } else if (tracks.length === 0) {
+      loadTracks();
+    }
+  }, [hasPermission, tracks.length]);
   
   // Generate recently played tracks (for demo purposes)
   useEffect(() => {

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { useColorScheme } from 'react-native';
+import { useColorScheme } from '../../hooks/useColorScheme';
 import { COLORS, LAYOUT } from '../../constants/Theme';
 
 export default function TabLayout() {
@@ -41,6 +41,16 @@ export default function TabLayout() {
           title: 'Library',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="library" size={size} color={color} />
+          ),
+        }}
+      />
+      
+      <Tabs.Screen
+        name="favorites"
+        options={{
+          title: 'Favorites',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="heart" size={size} color={color} />
           ),
         }}
       />

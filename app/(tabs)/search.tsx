@@ -8,7 +8,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
 } from 'react-native';
 import FullPlayer from '../../components/FullPlayer';
@@ -16,6 +15,7 @@ import MiniPlayer from '../../components/MiniPlayer';
 import TrackItem from '../../components/TrackItem';
 import { COLORS, FONTS, LAYOUT, SPACING } from '../../constants/Theme';
 import { Track, useMusicStore } from '../../store/musicStore';
+import { useColorScheme } from '../../hooks/useColorScheme';
 
 export default function SearchScreen() {
   const colorScheme = useColorScheme();

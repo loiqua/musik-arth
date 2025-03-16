@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  useColorScheme,
   View
 } from 'react-native';
 import AddOnlineTrackModal from '../../components/AddOnlineTrackModal';
@@ -18,6 +17,7 @@ import PlaylistItem from '../../components/PlaylistItem';
 import TrackItem from '../../components/TrackItem';
 import { COLORS, FONTS, LAYOUT, SPACING } from '../../constants/Theme';
 import { Playlist, Track, useMusicStore } from '../../store/musicStore';
+import { useColorScheme } from '../../hooks/useColorScheme';
 
 export default function LibraryScreen() {
   const colorScheme = useColorScheme();

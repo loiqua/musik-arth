@@ -61,11 +61,10 @@ export const getColorFromString = (str: string): string => {
  */
 export const getPlaceholderArtwork = (title: string, artist: string): string => {
   const color = getColorFromString(`${title}${artist}`);
-  const initials = `${title.charAt(0)}${artist ? artist.charAt(0) : ''}`.toUpperCase();
   
-  // Return a data URI for a simple SVG
+  // Return a data URI for a simple SVG with a music note icon
   return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
     <rect width="200" height="200" fill="${color.replace('#', '%23')}" />
-    <text x="50%" y="50%" font-family="Arial" font-size="80" fill="white" text-anchor="middle" dominant-baseline="middle">${initials}</text>
+    <path d="M125,50 L125,135 C125,143.3 118.3,150 110,150 C101.7,150 95,143.3 95,135 C95,126.7 101.7,120 110,120 C112.5,120 115,120.6 117.1,121.5 L117.1,70 L85,80 L85,125 C85,133.3 78.3,140 70,140 C61.7,140 55,133.3 55,125 C55,116.7 61.7,110 70,110 C72.5,110 75,110.6 77.1,111.5 L77.1,60 L125,50 Z" fill="white" />
   </svg>`;
 };

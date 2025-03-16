@@ -1,13 +1,17 @@
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import React, { useState } from 'react';
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  useColorScheme,
 } from 'react-native';
+import { useColorScheme } from '../hooks/useColorScheme';
 import { COLORS, FONTS, LAYOUT, SPACING } from '../constants/Theme';
 import { useMusicStore } from '../store/musicStore';
 

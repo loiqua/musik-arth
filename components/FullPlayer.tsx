@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import {
     Animated,
     Dimensions,
@@ -8,13 +8,14 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    useColorScheme,
     View,
 } from 'react-native';
+import { useColorScheme } from '../hooks/useColorScheme';
 import { COLORS, FONTS, LAYOUT, SPACING } from '../constants/Theme';
 import { useMusicStore } from '../store/musicStore';
 import { formatTime, getPlaceholderArtwork } from '../utils/audioUtils';
 import SimpleSlider from './SimpleSlider';
+import * as Haptics from 'expo-haptics';
 
 interface FullPlayerProps {
   onClose: () => void;
@@ -35,15 +36,20 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
   const playNextTrack = useMusicStore(state => state.playNextTrack);
   const playPreviousTrack = useMusicStore(state => state.playPreviousTrack);
   const seekTo = useMusicStore(state => state.seekTo);
+  const shuffleMode = useMusicStore(state => state.shuffleMode);
+  const repeatMode = useMusicStore(state => state.repeatMode);
+  const toggleShuffleMode = useMusicStore(state => state.toggleShuffleMode);
+  const toggleRepeatMode = useMusicStore(state => state.toggleRepeatMode);
+  const toggleFavorite = useMusicStore(state => state.toggleFavorite);
   
   const [sliderValue, setSliderValue] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
   
   // Animation for the player
-  const translateY = new Animated.Value(0);
+  const translateY = useMemo(() => new Animated.Value(0), []);
   
-  // Pan responder for swipe down to close
-  const panResponder = PanResponder.create({
+  // Pan responder for swipe down to close - optimisé avec useMemo
+  const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onPanResponderMove: (_, gestureState) => {
       if (gestureState.dy > 0) {
@@ -66,7 +72,7 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
         }).start();
       }
     },
-  });
+  }), [height, onClose, translateY]);
   
   // Update slider value when playback position changes
   useEffect(() => {
@@ -85,15 +91,44 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
   const secondaryTextColor = isDark ? COLORS.textSecondaryDark : COLORS.textSecondary;
   const backgroundColor = isDark ? COLORS.backgroundDark : COLORS.background;
   
-  const handleSeekStart = () => {
+  const handleSeekStart = useCallback(() => {
     setIsSeeking(true);
-  };
+  }, []);
   
-  const handleSeekComplete = (value: number) => {
-    setIsSeeking(false);
+  const handleSeekComplete = useCallback((value: number) => {
     const position = value * playbackDuration;
     seekTo(position);
-  };
+    // Utiliser requestAnimationFrame pour améliorer les performances
+    requestAnimationFrame(() => {
+      setIsSeeking(false);
+    });
+  }, [playbackDuration, seekTo]);
+  
+  const handleToggleFavorite = useCallback(() => {
+    if (currentTrack) {
+      toggleFavorite(currentTrack.id);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }, [currentTrack, toggleFavorite]);
+  
+  const handleToggleShuffle = useCallback(() => {
+    toggleShuffleMode();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [toggleShuffleMode]);
+  
+  const handleToggleRepeat = useCallback(() => {
+    toggleRepeatMode();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [toggleRepeatMode]);
+  
+  const handlePlayPause = useCallback(() => {
+    if (isPlaying) {
+      pauseTrack();
+    } else {
+      resumeTrack();
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, [isPlaying, pauseTrack, resumeTrack]);
   
   return (
     <Animated.View
@@ -116,8 +151,15 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
           </Text>
         </View>
         
-        <TouchableOpacity style={styles.optionsButton}>
-          <Ionicons name="ellipsis-horizontal" size={24} color={textColor} />
+        <TouchableOpacity 
+          onPress={handleToggleFavorite}
+          style={styles.favoriteButton}
+        >
+          <Ionicons 
+            name={currentTrack?.isFavorite ? "heart" : "heart-outline"} 
+            size={24} 
+            color={currentTrack?.isFavorite ? COLORS.primary : textColor} 
+          />
         </TouchableOpacity>
       </View>
       
@@ -166,37 +208,70 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
       
       {/* Controls */}
       <View style={styles.controlsContainer}>
-        <TouchableOpacity style={styles.secondaryControlButton}>
-          <Ionicons name="shuffle" size={24} color={secondaryTextColor} />
-        </TouchableOpacity>
-        
         <TouchableOpacity 
-          style={styles.controlButton}
-          onPress={playPreviousTrack}
+          onPress={handleToggleShuffle}
+          style={styles.secondaryControlButton}
         >
-          <Ionicons name="play-skip-back" size={36} color={textColor} />
+          <Ionicons
+            name="shuffle"
+            size={24}
+            color={shuffleMode ? COLORS.primary : secondaryTextColor}
+          />
         </TouchableOpacity>
         
-        <TouchableOpacity 
+        <TouchableOpacity
+          onPress={playPreviousTrack}
+          style={styles.controlButton}
+        >
+          <Ionicons
+            name="play-skip-back"
+            size={30}
+            color={textColor}
+          />
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          onPress={handlePlayPause}
           style={styles.playButton}
-          onPress={isPlaying ? pauseTrack : resumeTrack}
         >
           <Ionicons
             name={isPlaying ? 'pause' : 'play'}
-            size={32}
-            color={isDark ? COLORS.backgroundDark : COLORS.background}
+            size={36}
+            color={COLORS.background}
+          />
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          onPress={playNextTrack}
+          style={styles.controlButton}
+        >
+          <Ionicons
+            name="play-skip-forward"
+            size={30}
+            color={textColor}
           />
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={styles.controlButton}
-          onPress={playNextTrack}
+          onPress={handleToggleRepeat}
+          style={styles.secondaryControlButton}
         >
-          <Ionicons name="play-skip-forward" size={36} color={textColor} />
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.secondaryControlButton}>
-          <Ionicons name="repeat" size={24} color={secondaryTextColor} />
+          {repeatMode === 'one' ? (
+            <View style={styles.repeatOneContainer}>
+              <Ionicons
+                name="repeat"
+                size={24}
+                color={COLORS.primary}
+              />
+              <Text style={styles.repeatOneText}>1</Text>
+            </View>
+          ) : (
+            <Ionicons
+              name="repeat"
+              size={24}
+              color={repeatMode === 'all' ? COLORS.primary : secondaryTextColor}
+            />
+          )}
         </TouchableOpacity>
       </View>
       
@@ -224,9 +299,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.medium,
-    marginBottom: SPACING.large,
+    marginTop: SPACING.medium,
+    marginBottom: SPACING.small,
   },
   closeButton: {
+    padding: SPACING.small,
+  },
+  favoriteButton: {
     padding: SPACING.small,
   },
   headerTitleContainer: {
@@ -310,6 +389,19 @@ const styles = StyleSheet.create({
   bottomControlButton: {
     padding: SPACING.medium,
   },
+  repeatOneContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  repeatOneText: {
+    position: 'absolute',
+    fontFamily: FONTS.bold,
+    fontSize: 10,
+    color: COLORS.primary,
+    top: 12,
+    right: -4,
+  },
 });
 
-export default FullPlayer; 
+export default memo(FullPlayer); 

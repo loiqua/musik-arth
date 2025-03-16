@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Music Player",
-    "slug": "music-player",
+    "name": "musik'arth",
+    "slug": "musik-arth",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -21,7 +21,9 @@
       "supportsTablet": true,
       "infoPlist": {
         "UIBackgroundModes": [
-          "audio"
+          "audio",
+          "fetch",
+          "remote-notification"
         ],
         "NSAppleMusicUsageDescription": "This app needs access to your media library to play your music."
       }
@@ -33,8 +35,11 @@
       },
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_AUDIO",
-        "android.permission.FOREGROUND_SERVICE"
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ],
       "package": "com.musicplayer.app"
     },
@@ -60,6 +65,14 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
           "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
           "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#FF2D55",
+          "sounds": ["./assets/sounds/notification.wav"]
         }
       ]
     ],

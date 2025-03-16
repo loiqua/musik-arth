@@ -2,6 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import React, { useState } from 'react';
 import {
+  Dimensions,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -9,9 +11,10 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { useColorScheme } from '../hooks/useColorScheme';
 import { COLORS, FONTS, LAYOUT, SPACING } from '../constants/Theme';
 import { useMusicStore } from '../store/musicStore';
 

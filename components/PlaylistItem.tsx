@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useColorScheme } from '../hooks/useColorScheme';
 import { COLORS, FONTS, LAYOUT, SPACING } from '../constants/Theme';
 import { Playlist } from '../store/musicStore';
 import { getColorFromString } from '../utils/audioUtils';
