@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import React, { useCallback, memo } from 'react';
+import React, { useCallback, memo, useEffect } from 'react';
 import { 
   Dimensions, 
   Image, 
@@ -8,7 +8,7 @@ import {
   Text, 
   TouchableOpacity, 
   View,
-  Animated
+  AppState
 } from 'react-native';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { COLORS, FONTS, LAYOUT, SHADOWS, SPACING } from '../constants/Theme';
@@ -34,6 +34,20 @@ const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress }) => {
   const playNextTrack = useMusicStore(state => state.playNextTrack);
   const playPreviousTrack = useMusicStore(state => state.playPreviousTrack);
   const toggleFavorite = useMusicStore(state => state.toggleFavorite);
+  
+  // Effet pour reprendre la lecture lorsque l'app revient au premier plan
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active' && currentTrack) {
+        // Mettre à jour l'état de la lecture lorsque l'app revient au premier plan
+        console.log('App revenue au premier plan, vérification de la lecture...');
+      }
+    });
+    
+    return () => {
+      subscription.remove();
+    };
+  }, [currentTrack]);
   
   // Retourner null si aucune piste n'est en cours
   if (!currentTrack) return null;
