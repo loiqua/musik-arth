@@ -139,6 +139,14 @@ export default function RootLayout() {
             headerShown: false,
           }} 
         />
+        <Stack.Screen 
+          name="playlist-details" 
+          options={{ 
+            presentation: 'card',
+            headerShown: false,
+          }} 
+        />
+        <Stack.Screen name="create-playlist" options={{ presentation: 'card', headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

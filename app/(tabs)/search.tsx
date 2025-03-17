@@ -17,6 +17,7 @@ import { COLORS, FONTS, LAYOUT, SPACING } from '../../constants/Theme';
 import { Track, useMusicStore } from '../../store/musicStore';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import AppHeader from '../../components/AppHeader';
+import { useRouter } from 'expo-router';
 
 export default function SearchScreen() {
   const colorScheme = useColorScheme();
@@ -35,6 +36,8 @@ export default function SearchScreen() {
     loadTracks,
     playTrack,
   } = useMusicStore();
+  
+  const router = useRouter();
   
   // Request permissions and load tracks when the screen is focused
   useFocusEffect(
@@ -183,7 +186,7 @@ export default function SearchScreen() {
       
       {/* Mini Player */}
       {currentTrack && (
-        <MiniPlayer onPress={() => setIsPlayerVisible(true)} />
+        <MiniPlayer onPress={() => router.push(`/track-details?trackId=${currentTrack.id}`)} />
       )}
       
       {/* Full Screen Player */}

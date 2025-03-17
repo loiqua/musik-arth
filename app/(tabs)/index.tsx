@@ -224,7 +224,7 @@ export default function HomeScreen() {
       
       {/* Mini Player */}
       {currentTrack && (
-        <MiniPlayer onPress={() => setIsPlayerVisible(true)} />
+        <MiniPlayer onPress={() => router.push(`/track-details?trackId=${currentTrack.id}`)} />
       )}
       
       {/* Full Screen Player */}

@@ -191,6 +191,7 @@ interface MusicState {
   playPreviousTrack: () => Promise<void>;
   seekTo: (position: number) => Promise<void>;
   createPlaylist: (name: string) => void;
+  renamePlaylist: (playlistId: string, newName: string) => void;
   addTrackToPlaylist: (playlistId: string, trackId: string) => void;
   removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
   deletePlaylist: (playlistId: string) => void;
@@ -629,66 +630,60 @@ export const useMusicStore = create<MusicState>((set, get) => {
       createdAt: Date.now(),
     };
     
-    set(state => {
-      const updatedPlaylists = [...state.playlists, newPlaylist];
-      // Sauvegarder les playlists dans le stockage local
-      AsyncStorage.setItem(PLAYLISTS_STORAGE_KEY, JSON.stringify(updatedPlaylists))
-        .catch(err => console.error('Error saving playlists:', err));
-      
-      return { playlists: updatedPlaylists };
-    });
+    set(state => ({
+      playlists: [...state.playlists, newPlaylist],
+    }));
+    
+    // Save playlists to storage
+    get().saveTracksToStorage();
+  },
+  
+  renamePlaylist: (playlistId: string, newName: string) => {
+    set(state => ({
+      playlists: state.playlists.map(playlist => 
+        playlist.id === playlistId 
+          ? { ...playlist, name: newName } 
+          : playlist
+      ),
+    }));
+    
+    // Save playlists to storage
+    get().saveTracksToStorage();
   },
   
   addTrackToPlaylist: (playlistId: string, trackId: string) => {
-    set(state => {
-      const updatedPlaylists = state.playlists.map(playlist => {
-        if (playlist.id === playlistId && !playlist.tracks.includes(trackId)) {
-          return {
-            ...playlist,
-            tracks: [...playlist.tracks, trackId],
-          };
-        }
-        return playlist;
-      });
-      
-      // Sauvegarder les playlists dans le stockage local
-      AsyncStorage.setItem(PLAYLISTS_STORAGE_KEY, JSON.stringify(updatedPlaylists))
-        .catch(err => console.error('Error saving playlists:', err));
-      
-      return { playlists: updatedPlaylists };
-    });
+    set(state => ({
+      playlists: state.playlists.map(playlist => 
+        playlist.id === playlistId 
+          ? { ...playlist, tracks: [...playlist.tracks, trackId] } 
+          : playlist
+      ),
+    }));
+    
+    // Save playlists to storage
+    get().saveTracksToStorage();
   },
   
   removeTrackFromPlaylist: (playlistId: string, trackId: string) => {
-    set(state => {
-      const updatedPlaylists = state.playlists.map(playlist => {
-        if (playlist.id === playlistId) {
-          return {
-            ...playlist,
-            tracks: playlist.tracks.filter(id => id !== trackId),
-          };
-        }
-        return playlist;
-      });
-      
-      // Sauvegarder les playlists dans le stockage local
-      AsyncStorage.setItem(PLAYLISTS_STORAGE_KEY, JSON.stringify(updatedPlaylists))
-        .catch(err => console.error('Error saving playlists:', err));
-      
-      return { playlists: updatedPlaylists };
-    });
+    set(state => ({
+      playlists: state.playlists.map(playlist => 
+        playlist.id === playlistId 
+          ? { ...playlist, tracks: playlist.tracks.filter(id => id !== trackId) } 
+          : playlist
+      ),
+    }));
+    
+    // Save playlists to storage
+    get().saveTracksToStorage();
   },
   
   deletePlaylist: (playlistId: string) => {
-    set(state => {
-      const updatedPlaylists = state.playlists.filter(playlist => playlist.id !== playlistId);
-      
-      // Sauvegarder les playlists dans le stockage local
-      AsyncStorage.setItem(PLAYLISTS_STORAGE_KEY, JSON.stringify(updatedPlaylists))
-        .catch(err => console.error('Error saving playlists:', err));
-      
-      return { playlists: updatedPlaylists };
-    });
+    set(state => ({
+      playlists: state.playlists.filter(playlist => playlist.id !== playlistId),
+    }));
+    
+    // Save playlists to storage
+    get().saveTracksToStorage();
   },
   
   // Nouvelles fonctions pour l'importation et la gestion des fichiers
@@ -824,44 +819,85 @@ export const useMusicStore = create<MusicState>((set, get) => {
   },
   
   deleteTrack: async (trackId: string) => {
-    const { tracks, currentTrack } = get();
-    const trackToDelete = tracks.find(t => t.id === trackId);
-    
-    if (!trackToDelete) return;
-    
-    // Si c'est la piste en cours de lecture, arrêter la lecture
-    if (currentTrack?.id === trackId) {
-      await get().pauseTrack();
-      const { sound } = get();
-      if (sound) {
-        await sound.unloadAsync();
+    try {
+      // Marquer comme chargement pour éviter les interactions pendant la suppression
+      set({ isLoading: true });
+      
+      const { tracks, currentTrack, sound } = get();
+      const trackToDelete = tracks.find(t => t.id === trackId);
+      
+      if (!trackToDelete) {
+        set({ isLoading: false });
+        return;
       }
-      set({ currentTrack: null, sound: null });
-    }
-    
-    // Si c'est une piste locale, supprimer le fichier
-    await deleteLocalFileIfNeeded(trackToDelete.uri, trackToDelete.isLocal);
-    
-    // Mettre à jour la liste des pistes
-    set(state => {
-      const updatedTracks = state.tracks.filter(t => t.id !== trackId);
+      
+      // Si c'est la piste en cours de lecture, arrêter la lecture
+      if (currentTrack?.id === trackId) {
+        try {
+          // Arrêter la lecture avant de décharger le son
+          if (sound) {
+            await sound.stopAsync().catch(() => {});
+            await sound.unloadAsync().catch(() => {});
+          }
+          
+          // Mettre à jour l'état pour indiquer qu'aucune piste n'est en cours de lecture
+          set({ 
+            currentTrack: null, 
+            sound: null,
+            isPlaying: false,
+            playbackPosition: 0,
+            playbackDuration: 0
+          });
+        } catch (error) {
+          console.error('Erreur lors de l\'arrêt de la lecture:', error);
+        }
+      }
+      
+      // Si c'est une piste locale, supprimer le fichier
+      if (trackToDelete.isLocal && trackToDelete.uri) {
+        try {
+          await deleteLocalFileIfNeeded(trackToDelete.uri, true);
+        } catch (error) {
+          console.error('Erreur lors de la suppression du fichier local:', error);
+        }
+      }
+      
+      // Mettre à jour la liste des pistes et des playlists
+      const updatedTracks = tracks.filter(t => t.id !== trackId);
       
       // Mettre à jour les playlists pour supprimer cette piste
-      const updatedPlaylists = state.playlists.map(playlist => ({
+      const updatedPlaylists = get().playlists.map(playlist => ({
         ...playlist,
         tracks: playlist.tracks.filter(id => id !== trackId)
       }));
       
       // Sauvegarder les changements dans le stockage local
-      AsyncStorage.setItem(TRACKS_STORAGE_KEY, JSON.stringify(
-        updatedTracks.filter(track => track.isLocal)
-      )).catch(err => console.error('Error saving tracks:', err));
+      try {
+        await AsyncStorage.setItem(
+          TRACKS_STORAGE_KEY, 
+          JSON.stringify(updatedTracks.filter(track => track.isLocal))
+        );
+        
+        await AsyncStorage.setItem(
+          PLAYLISTS_STORAGE_KEY, 
+          JSON.stringify(updatedPlaylists)
+        );
+      } catch (error) {
+        console.error('Erreur lors de la sauvegarde des données:', error);
+      }
       
-      AsyncStorage.setItem(PLAYLISTS_STORAGE_KEY, JSON.stringify(updatedPlaylists))
-        .catch(err => console.error('Error saving playlists:', err));
+      // Mettre à jour l'état avec les nouvelles listes
+      set({ 
+        tracks: updatedTracks, 
+        playlists: updatedPlaylists,
+        isLoading: false
+      });
       
-      return { tracks: updatedTracks, playlists: updatedPlaylists };
-    });
+      console.log('Piste supprimée avec succès:', trackId);
+    } catch (error) {
+      console.error('Erreur globale lors de la suppression de la piste:', error);
+      set({ isLoading: false });
+    }
   },
   
   importOnlineTrack: async (url: string, title: string, artist = 'Artiste inconnu', album = 'Album inconnu') => {

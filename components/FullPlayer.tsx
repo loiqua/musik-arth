@@ -28,6 +28,10 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
   const isDark = colorScheme === 'dark';
   
   const currentTrack = useMusicStore(state => state.currentTrack);
+  
+  // Vérifier si currentTrack existe avant de continuer
+  if (!currentTrack) return null;
+  
   const isPlaying = useMusicStore(state => state.isPlaying);
   const playbackPosition = useMusicStore(state => state.playbackPosition);
   const playbackDuration = useMusicStore(state => state.playbackDuration);
@@ -80,8 +84,6 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
       setSliderValue(playbackPosition / playbackDuration);
     }
   }, [playbackPosition, playbackDuration, isSeeking]);
-  
-  if (!currentTrack) return null;
   
   const artworkSource = currentTrack.artwork 
     ? { uri: currentTrack.artwork } 

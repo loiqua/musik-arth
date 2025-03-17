@@ -19,6 +19,7 @@ import { COLORS, FONTS, LAYOUT, SPACING } from '../../constants/Theme';
 import { Playlist, Track, useMusicStore } from '../../store/musicStore';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import AppHeader from '../../components/AppHeader';
+import { useRouter } from 'expo-router';
 
 export default function LibraryScreen() {
   const colorScheme = useColorScheme();
@@ -41,6 +42,8 @@ export default function LibraryScreen() {
     importAudioFile,
   } = useMusicStore();
   
+  const router = useRouter();
+  
   // Request permissions and load tracks when the screen is focused
   useFocusEffect(
     React.useCallback(() => {
@@ -58,11 +61,6 @@ export default function LibraryScreen() {
   
   const handleTrackPress = (track: Track) => {
     playTrack(track);
-  };
-  
-  const handlePlaylistPress = (playlist: Playlist) => {
-    // Navigate to playlist detail screen
-    console.log('Navigate to playlist:', playlist.name);
   };
   
   const renderEmptyLibrary = () => (
@@ -194,7 +192,6 @@ export default function LibraryScreen() {
               renderItem={({ item }) => (
                 <PlaylistItem
                   playlist={item}
-                  onPress={handlePlaylistPress}
                 />
               )}
               ListEmptyComponent={() => (
@@ -226,7 +223,7 @@ export default function LibraryScreen() {
       
       {/* Mini Player */}
       {currentTrack && (
-        <MiniPlayer onPress={() => setIsPlayerVisible(true)} />
+        <MiniPlayer onPress={() => router.push(`/track-details?trackId=${currentTrack.id}`)} />
       )}
       
       {/* Full Screen Player */}
