@@ -15,6 +15,7 @@ import TrackItem from '../../components/TrackItem';
 import { Track, useMusicStore } from '../../store/musicStore';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import AppHeader from '../../components/AppHeader';
 
 export default function FavoritesScreen() {
   const colorScheme = useColorScheme();
@@ -49,13 +50,7 @@ export default function FavoritesScreen() {
   
   return (
     <View style={[styles.container, { backgroundColor }]}>
-      <BlurView
-        intensity={80}
-        tint={isDark ? 'dark' : 'light'}
-        style={styles.header}
-      >
-        <Text style={[styles.title, { color: textColor }]}>Favorites</Text>
-      </BlurView>
+      <AppHeader title="Favorites" />
       
       {favoriteTracks.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -92,18 +87,6 @@ export default function FavoritesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    paddingTop: StatusBar.currentHeight || 44 + SPACING.medium,
-    paddingBottom: SPACING.medium,
-    paddingHorizontal: SPACING.medium,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-  },
-  title: {
-    fontSize: FONTS.sizes.xxxl,
-    fontFamily: FONTS.bold,
-    marginBottom: SPACING.small,
   },
   listContent: {
     paddingBottom: LAYOUT.miniPlayerHeight + LAYOUT.tabBarHeight,

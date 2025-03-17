@@ -16,6 +16,7 @@ import TrackItem from '../../components/TrackItem';
 import { COLORS, FONTS, LAYOUT, SPACING } from '../../constants/Theme';
 import { Track, useMusicStore } from '../../store/musicStore';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import AppHeader from '../../components/AppHeader';
 
 export default function SearchScreen() {
   const colorScheme = useColorScheme();
@@ -80,6 +81,7 @@ export default function SearchScreen() {
   if (!hasPermission) {
     return (
       <View style={[styles.container, { backgroundColor }]}>
+        <AppHeader title="Search" />
         <View style={styles.permissionContainer}>
           <Ionicons
             name="lock-closed"
@@ -106,10 +108,7 @@ export default function SearchScreen() {
   
   return (
     <View style={[styles.container, { backgroundColor }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: textColor }]}>Search</Text>
-      </View>
+      <AppHeader title="Search" />
       
       {/* Search Input */}
       <View style={styles.searchContainer}>
@@ -198,15 +197,6 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    paddingHorizontal: SPACING.large,
-    paddingTop: SPACING.large,
-    paddingBottom: SPACING.medium,
-  },
-  title: {
-    fontFamily: FONTS.bold,
-    fontSize: FONTS.sizes.xxxl,
   },
   searchContainer: {
     paddingHorizontal: SPACING.large,

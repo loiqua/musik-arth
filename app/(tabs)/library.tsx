@@ -18,6 +18,7 @@ import TrackItem from '../../components/TrackItem';
 import { COLORS, FONTS, LAYOUT, SPACING } from '../../constants/Theme';
 import { Playlist, Track, useMusicStore } from '../../store/musicStore';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import AppHeader from '../../components/AppHeader';
 
 export default function LibraryScreen() {
   const colorScheme = useColorScheme();
@@ -84,6 +85,7 @@ export default function LibraryScreen() {
   if (!hasPermission) {
     return (
       <View style={[styles.container, { backgroundColor }]}>
+        <AppHeader title="Library" />
         <View style={styles.permissionContainer}>
           <Ionicons
             name="lock-closed"
@@ -110,33 +112,33 @@ export default function LibraryScreen() {
   
   return (
     <View style={[styles.container, { backgroundColor }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: textColor }]}>Library</Text>
-        
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={importAudioFile}
-          >
-            <Ionicons name="cloud-upload" size={24} color={COLORS.primary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => setIsCreatePlaylistVisible(true)}
-          >
-            <Ionicons name="add" size={24} color={COLORS.primary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => setIsAddOnlineTrackVisible(true)}
-          >
-            <Ionicons name="globe-outline" size={24} color={COLORS.primary} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AppHeader 
+        title="Library" 
+        rightComponent={
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={importAudioFile}
+            >
+              <Ionicons name="cloud-upload" size={24} color={COLORS.primary} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => setIsCreatePlaylistVisible(true)}
+            >
+              <Ionicons name="add" size={24} color={COLORS.primary} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => setIsAddOnlineTrackVisible(true)}
+            >
+              <Ionicons name="globe-outline" size={24} color={COLORS.primary} />
+            </TouchableOpacity>
+          </View>
+        }
+      />
       
       {/* Section Tabs */}
       <View style={styles.tabsContainer}>
@@ -249,18 +251,6 @@ export default function LibraryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.large,
-    paddingTop: SPACING.large,
-    paddingBottom: SPACING.medium,
-  },
-  title: {
-    fontFamily: FONTS.bold,
-    fontSize: FONTS.sizes.xxxl,
   },
   headerButtons: {
     flexDirection: 'row',

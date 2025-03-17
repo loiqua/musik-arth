@@ -19,6 +19,7 @@ import { useColorScheme } from '../hooks/useColorScheme';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import SimpleSlider from '../components/SimpleSlider';
+import AppHeader from '../components/AppHeader';
 
 const { width } = Dimensions.get('window');
 
@@ -154,24 +155,19 @@ export default function TrackDetailsScreen() {
   
   return (
     <View style={[styles.container, { backgroundColor }]}>
-      {/* Header avec effet de flou */}
-      <BlurView
-        intensity={80}
-        tint={isDark ? 'dark' : 'light'}
-        style={styles.header}
-      >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color={textColor} />
-        </TouchableOpacity>
-        
-        <Text style={[styles.headerTitle, { color: textColor }]} numberOfLines={1}>
-          Détails de la piste
-        </Text>
-        
-        <TouchableOpacity style={styles.optionsButton} onPress={handleDelete}>
-          <Ionicons name="trash-outline" size={24} color={COLORS.primary} />
-        </TouchableOpacity>
-      </BlurView>
+      <AppHeader 
+        title="Track Details" 
+        showBackButton={true}
+        onBackPress={() => router.back()}
+        rightComponent={
+          <TouchableOpacity
+            style={styles.optionsButton}
+            onPress={handleDelete}
+          >
+            <Ionicons name="trash-outline" size={24} color={COLORS.primary} />
+          </TouchableOpacity>
+        }
+      />
       
       <View style={styles.content}>
         {/* Artwork */}
@@ -334,29 +330,6 @@ export default function TrackDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.medium,
-    paddingTop: SPACING.large + 10,
-    paddingBottom: SPACING.medium,
-    zIndex: 10,
-  },
-  backButton: {
-    padding: SPACING.small,
-    marginLeft: -SPACING.small,
-  },
-  headerTitle: {
-    fontFamily: FONTS.medium,
-    fontSize: FONTS.sizes.medium,
-    flex: 1,
-    textAlign: 'center',
-  },
-  optionsButton: {
-    padding: SPACING.small,
-    marginRight: -SPACING.small,
   },
   content: {
     flex: 1,
@@ -530,5 +503,9 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: FONTS.sizes.medium,
     marginLeft: SPACING.small,
+  },
+  optionsButton: {
+    padding: SPACING.small,
+    marginRight: -SPACING.small,
   },
 });

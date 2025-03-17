@@ -19,6 +19,7 @@ import { COLORS, FONTS, LAYOUT, SPACING } from '../../constants/Theme';
 import { Track, useMusicStore } from '../../store/musicStore';
 import { formatTitle, getPlaceholderArtwork } from '../../utils/audioUtils';
 import { useColorScheme } from '../../hooks/useColorScheme';
+import AppHeader from '../../components/AppHeader';
 
 const { width } = Dimensions.get('window');
 const ALBUM_SIZE = (width - SPACING.large * 2 - SPACING.medium * 2) / 2;
@@ -26,6 +27,7 @@ const ALBUM_SIZE = (width - SPACING.large * 2 - SPACING.medium * 2) / 2;
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const router = useRouter();
   
   const [isPlayerVisible, setIsPlayerVisible] = useState(false);
   const [recentlyPlayed, setRecentlyPlayed] = useState<Track[]>([]);
@@ -109,6 +111,7 @@ export default function HomeScreen() {
   if (!hasPermission) {
     return (
       <View style={[styles.container, { backgroundColor }]}>
+        <AppHeader title="musik'arth" />
         <View style={styles.permissionContainer}>
           <Ionicons
             name="lock-closed"
@@ -135,19 +138,19 @@ export default function HomeScreen() {
   
   return (
     <View style={[styles.container, { backgroundColor }]}>
+      <AppHeader 
+        title="Listen Now" 
+        rightComponent={
+          <TouchableOpacity style={styles.profileButton}>
+            <Ionicons name="person-circle" size={32} color={COLORS.primary} />
+          </TouchableOpacity>
+        }
+      />
+      
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: textColor }]}>Listen Now</Text>
-          
-          <TouchableOpacity style={styles.profileButton}>
-            <Ionicons name="person-circle" size={32} color={COLORS.primary} />
-          </TouchableOpacity>
-        </View>
-        
         {/* Recently Played Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: textColor }]}>
@@ -238,18 +241,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: LAYOUT.miniPlayerHeight + LAYOUT.tabBarHeight,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACING.large,
-    paddingTop: SPACING.large,
-    paddingBottom: SPACING.medium,
-  },
-  title: {
-    fontFamily: FONTS.bold,
-    fontSize: FONTS.sizes.xxxl,
   },
   profileButton: {
     width: 40,

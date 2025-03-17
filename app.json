@@ -9,8 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
-      "imageWidth": 200,
+      "image": "./assets/images/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#FF2D55"
     },
@@ -26,6 +25,11 @@
           "remote-notification"
         ],
         "NSAppleMusicUsageDescription": "This app needs access to your media library to play your music."
+      },
+      "icon": "./assets/images/icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#FF2D55"
       }
     },
     "android": {
@@ -53,8 +57,8 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/splash.png",
+          "imageWidth": 300,
           "resizeMode": "contain",
           "backgroundColor": "#FF2D55"
         }
@@ -70,7 +74,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/notification-icon.png",
+          "icon": "./assets/images/adaptive-icon.png",
           "color": "#FF2D55",
           "sounds": ["./assets/sounds/notification.wav"]
         }

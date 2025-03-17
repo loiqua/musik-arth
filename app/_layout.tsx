@@ -4,10 +4,11 @@ import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { Appearance, ColorSchemeName, AppState, AppStateStatus } from 'react-native';
+import { Appearance, ColorSchemeName, AppState, AppStateStatus, Animated, View, Image } from 'react-native';
 import 'react-native-reanimated';
 import { useMusicStore } from '../store/musicStore';
 import * as Notifications from 'expo-notifications';
+import { COLORS } from '../constants/Theme';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -25,6 +26,9 @@ Notifications.setNotificationHandler({
 export default function RootLayout() {
   const [colorScheme, setColorScheme] = useState<ColorSchemeName>(Appearance.getColorScheme());
   const router = useRouter();
+  const [appIsReady, setAppIsReady] = useState(false);
+  const [splashAnimationComplete, setSplashAnimationComplete] = useState(false);
+  const fadeAnim = useState(new Animated.Value(1))[0];
   
   useEffect(() => {
     const subscription = Appearance.addChangeListener(({ colorScheme }) => {
@@ -44,11 +48,19 @@ export default function RootLayout() {
   // Request permissions when the app starts
   useEffect(() => {
     const setupApp = async () => {
-      // Request media permissions
-      await requestPermissions();
-      
-      // Request notification permissions
-      await Notifications.requestPermissionsAsync();
+      try {
+        // Request media permissions
+        await requestPermissions();
+        
+        // Request notification permissions
+        await Notifications.requestPermissionsAsync();
+        
+        // Marquer l'application comme prête
+        setAppIsReady(true);
+      } catch (e) {
+        console.warn(e);
+        setAppIsReady(true);
+      }
     };
     
     setupApp();
@@ -65,7 +77,9 @@ export default function RootLayout() {
       }
     };
     
-    checkForNotificationOpen();
+    if (splashAnimationComplete) {
+      checkForNotificationOpen();
+    }
     
     // Vérifier également lorsque l'application revient au premier plan
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
@@ -77,16 +91,40 @@ export default function RootLayout() {
     return () => {
       subscription.remove();
     };
-  }, [checkNotificationNavigation, router]);
+  }, [checkNotificationNavigation, router, splashAnimationComplete]);
 
+  // Animer et cacher l'écran de démarrage lorsque l'application est prête
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
+    if (appIsReady && loaded) {
+      // Animer le fondu de l'écran de démarrage
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }).start(() => {
+        setSplashAnimationComplete(true);
+        SplashScreen.hideAsync();
+      });
     }
-  }, [loaded]);
+  }, [appIsReady, loaded, fadeAnim]);
 
-  if (!loaded) {
-    return null;
+  if (!loaded || !appIsReady || !splashAnimationComplete) {
+    return (
+      <Animated.View 
+        style={{
+          flex: 1,
+          backgroundColor: COLORS.primary,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: fadeAnim,
+        }}
+      >
+        <Image 
+          source={require('../assets/images/splash.png')} 
+          style={{ width: 300, height: 300, resizeMode: 'contain' }}
+        />
+      </Animated.View>
+    );
   }
 
   return (
