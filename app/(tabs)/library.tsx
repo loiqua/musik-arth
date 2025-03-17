@@ -1,13 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  SectionList,
+  Image
 } from 'react-native';
 import AddOnlineTrackModal from '../../components/AddOnlineTrackModal';
 import CreatePlaylistModal from '../../components/CreatePlaylistModal';
@@ -20,6 +22,13 @@ import { Playlist, Track, useMusicStore } from '../../store/musicStore';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import AppHeader from '../../components/AppHeader';
 import { useRouter } from 'expo-router';
+import { getAlbumPlaceholderArtwork, getArtistPlaceholderArtwork, getPlaceholderArtwork } from '../../utils/audioUtils';
+
+interface SectionData {
+  title: string;
+  data: Track[];
+  artwork?: string | null;
+}
 
 export default function LibraryScreen() {
   const colorScheme = useColorScheme();
@@ -27,7 +36,7 @@ export default function LibraryScreen() {
   
   const [isPlayerVisible, setIsPlayerVisible] = useState(false);
   const [isCreatePlaylistVisible, setIsCreatePlaylistVisible] = useState(false);
-  const [activeSection, setActiveSection] = useState<'playlists' | 'songs'>('playlists');
+  const [activeSection, setActiveSection] = useState<'playlists' | 'songs' | 'artists' | 'albums'>('playlists');
   const [isAddOnlineTrackVisible, setIsAddOnlineTrackVisible] = useState(false);
   
   const {
@@ -39,7 +48,7 @@ export default function LibraryScreen() {
     requestPermissions,
     loadTracks,
     playTrack,
-    importAudioFile,
+    importAudioFile
   } = useMusicStore();
   
   const router = useRouter();
@@ -54,6 +63,52 @@ export default function LibraryScreen() {
       }
     }, [hasPermission, tracks.length])
   );
+  
+  // Organize tracks by artist
+  const artistSections = useMemo(() => {
+    const artistMap = new Map<string, { tracks: Track[], artwork: string | null }>();
+    
+    tracks.forEach(track => {
+      const artistName = track.artist || 'Unknown Artist';
+      
+      if (!artistMap.has(artistName)) {
+        artistMap.set(artistName, { 
+          tracks: [],
+          artwork: track.artwork // Use the first track's artwork for the artist
+        });
+      }
+      
+      artistMap.get(artistName)!.tracks.push(track);
+    });
+    
+    // Convert map to array and sort by artist name
+    return Array.from(artistMap.entries())
+      .map(([title, { tracks, artwork }]) => ({ title, data: tracks, artwork }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [tracks]);
+  
+  // Organize tracks by album
+  const albumSections = useMemo(() => {
+    const albumMap = new Map<string, { tracks: Track[], artwork: string | null }>();
+    
+    tracks.forEach(track => {
+      const albumName = track.album || 'Unknown Album';
+      
+      if (!albumMap.has(albumName)) {
+        albumMap.set(albumName, { 
+          tracks: [],
+          artwork: track.artwork // Use the first track's artwork for the album
+        });
+      }
+      
+      albumMap.get(albumName)!.tracks.push(track);
+    });
+    
+    // Convert map to array and sort by album name
+    return Array.from(albumMap.entries())
+      .map(([title, { tracks, artwork }]) => ({ title, data: tracks, artwork }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [tracks]);
   
   const backgroundColor = isDark ? COLORS.backgroundDark : COLORS.background;
   const textColor = isDark ? COLORS.textDark : COLORS.text;
@@ -79,6 +134,54 @@ export default function LibraryScreen() {
       </Text>
     </View>
   );
+  
+  const renderSectionHeader = ({ section }: { section: SectionData }) => {
+    // Déterminer la source de l'artwork en fonction du type de section
+    let artworkSource;
+    
+    if (activeSection === 'artists') {
+      artworkSource = { uri: getArtistPlaceholderArtwork(section.title) };
+    } else if (activeSection === 'albums') {
+      artworkSource = section.artwork 
+        ? { uri: section.artwork } 
+        : { uri: getAlbumPlaceholderArtwork(section.title) };
+    } else {
+      // Pour les playlists ou autres sections
+      artworkSource = section.artwork 
+        ? { uri: section.artwork } 
+        : { uri: getPlaceholderArtwork(section.title, 'Various Artists') };
+    }
+    
+    const handleSectionPress = () => {
+      if (activeSection === 'artists') {
+        router.push(`/artist-details?artistName=${section.title}`);
+      } else if (activeSection === 'albums') {
+        router.push(`/album-details?albumName=${section.title}`);
+      }
+    };
+    
+    return (
+      <TouchableOpacity 
+        style={[styles.sectionHeader, { backgroundColor }]}
+        onPress={handleSectionPress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.sectionHeaderImageContainer}>
+          <Image source={artworkSource} style={styles.sectionHeaderImage} />
+          <View style={styles.sectionHeaderImageOverlay} />
+        </View>
+        <View style={styles.sectionHeaderTextContainer}>
+          <Text style={[styles.sectionHeaderText, { color: textColor }]}>
+            {section.title}
+          </Text>
+          <Text style={[styles.sectionHeaderCount, { color: secondaryTextColor }]}>
+            {section.data.length} {section.data.length === 1 ? 'song' : 'songs'}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={24} color={secondaryTextColor} />
+      </TouchableOpacity>
+    );
+  };
   
   if (!hasPermission) {
     return (
@@ -173,6 +276,40 @@ export default function LibraryScreen() {
             Songs
           </Text>
         </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            activeSection === 'artists' && styles.activeTab,
+          ]}
+          onPress={() => setActiveSection('artists')}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              { color: activeSection === 'artists' ? COLORS.primary : secondaryTextColor },
+            ]}
+          >
+            Artists
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[
+            styles.tab,
+            activeSection === 'albums' && styles.activeTab,
+          ]}
+          onPress={() => setActiveSection('albums')}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              { color: activeSection === 'albums' ? COLORS.primary : secondaryTextColor },
+            ]}
+          >
+            Albums
+          </Text>
+        </TouchableOpacity>
       </View>
       
       {/* Content */}
@@ -203,7 +340,7 @@ export default function LibraryScreen() {
               )}
               contentContainerStyle={styles.listContent}
             />
-          ) : (
+          ) : activeSection === 'songs' ? (
             <FlatList
               data={tracks}
               keyExtractor={(item) => item.id}
@@ -212,10 +349,49 @@ export default function LibraryScreen() {
                   track={item}
                   onPress={handleTrackPress}
                   isPlaying={currentTrack?.id === item.id}
+                  showArtwork
+                  showAlbum
+                  showDuration
                 />
               )}
               ListEmptyComponent={renderEmptyLibrary}
               contentContainerStyle={styles.listContent}
+            />
+          ) : activeSection === 'artists' ? (
+            <SectionList
+              sections={artistSections}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TrackItem
+                  track={item}
+                  onPress={handleTrackPress}
+                  isPlaying={currentTrack?.id === item.id}
+                  showArtwork
+                  showAlbum
+                />
+              )}
+              renderSectionHeader={renderSectionHeader}
+              ListEmptyComponent={renderEmptyLibrary}
+              contentContainerStyle={styles.listContent}
+              stickySectionHeadersEnabled
+            />
+          ) : (
+            <SectionList
+              sections={albumSections}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TrackItem
+                  track={item}
+                  onPress={handleTrackPress}
+                  isPlaying={currentTrack?.id === item.id}
+                  showArtwork
+                  showDuration
+                />
+              )}
+              renderSectionHeader={renderSectionHeader}
+              ListEmptyComponent={renderEmptyLibrary}
+              contentContainerStyle={styles.listContent}
+              stickySectionHeadersEnabled
             />
           )}
         </>
@@ -265,10 +441,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: SPACING.large,
     marginBottom: SPACING.medium,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(150, 150, 150, 0.1)',
+    paddingBottom: 2,
   },
   tab: {
     marginRight: SPACING.large,
     paddingVertical: SPACING.small,
+    paddingHorizontal: SPACING.small,
   },
   activeTab: {
     borderBottomWidth: 2,
@@ -280,7 +460,57 @@ const styles = StyleSheet.create({
   },
   listContent: {
     flexGrow: 1,
-    paddingBottom: LAYOUT.miniPlayerHeight + LAYOUT.tabBarHeight,
+    paddingBottom: LAYOUT.miniPlayerHeight + LAYOUT.tabBarHeight + 10,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.medium,
+    paddingHorizontal: SPACING.large,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+    backgroundColor: 'rgba(150, 150, 150, 0.05)',
+    justifyContent: 'space-between',
+  },
+  sectionHeaderImageContainer: {
+    position: 'relative',
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginRight: SPACING.medium,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  sectionHeaderImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  sectionHeaderImageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    borderRadius: 12,
+  },
+  sectionHeaderTextContainer: {
+    flex: 1,
+  },
+  sectionHeaderText: {
+    fontFamily: FONTS.bold,
+    fontSize: FONTS.sizes.medium,
+  },
+  sectionHeaderCount: {
+    fontFamily: FONTS.regular,
+    fontSize: FONTS.sizes.small,
+    marginTop: 2,
+    opacity: 0.8,
   },
   emptyContainer: {
     flex: 1,
@@ -290,6 +520,7 @@ const styles = StyleSheet.create({
   },
   emptyIcon: {
     marginBottom: SPACING.large,
+    opacity: 0.8,
   },
   emptyTitle: {
     fontFamily: FONTS.bold,
@@ -301,25 +532,32 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: FONTS.sizes.medium,
     textAlign: 'center',
+    opacity: 0.8,
   },
   emptyListContainer: {
     padding: SPACING.xl,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.xxl,
   },
   emptyListText: {
     fontFamily: FONTS.regular,
     fontSize: FONTS.sizes.medium,
     textAlign: 'center',
+    opacity: 0.7,
+    fontStyle: 'italic',
   },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingTop: SPACING.xxl,
   },
   loadingText: {
     fontFamily: FONTS.regular,
     fontSize: FONTS.sizes.medium,
     marginTop: SPACING.medium,
+    opacity: 0.8,
   },
   permissionContainer: {
     flex: 1,
@@ -329,6 +567,7 @@ const styles = StyleSheet.create({
   },
   permissionIcon: {
     marginBottom: SPACING.large,
+    opacity: 0.8,
   },
   permissionTitle: {
     fontFamily: FONTS.bold,
@@ -341,11 +580,17 @@ const styles = StyleSheet.create({
     fontSize: FONTS.sizes.medium,
     textAlign: 'center',
     marginBottom: SPACING.xl,
+    opacity: 0.8,
   },
   permissionButton: {
     paddingVertical: SPACING.medium,
     paddingHorizontal: SPACING.large,
     borderRadius: LAYOUT.borderRadius.medium,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
   },
   permissionButtonText: {
     fontFamily: FONTS.medium,

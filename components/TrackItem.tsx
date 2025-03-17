@@ -16,7 +16,7 @@ import { useColorScheme } from '../hooks/useColorScheme';
 import { COLORS, FONTS, LAYOUT, SPACING } from '../constants/Theme';
 import { Track, useMusicStore } from '../store/musicStore';
 import { formatTime, formatTitle, getPlaceholderArtwork } from '../utils/audioUtils';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from 'expo-haptics'
 
 interface TrackItemProps {
   track: Track;
@@ -28,6 +28,13 @@ interface TrackItemProps {
   showOptions?: boolean;
   onOptionsPress?: (track: Track) => void;
 }
+
+// Images locales
+const localImages = {
+  'music-note': require('../assets/images/icons/music-note.png'),
+  'vinyl-record': require('../assets/images/icons/vinyl-record.png'),
+  'microphone': require('../assets/images/icons/microphone.png'),
+};
 
 const TrackItem: React.FC<TrackItemProps> = ({
   track,
@@ -151,64 +158,79 @@ const TrackItem: React.FC<TrackItemProps> = ({
   return (
     <>
       <TouchableOpacity
-        style={styles.container}
+        style={[
+          styles.container,
+          isPlaying && styles.playingContainer
+        ]}
         onPress={() => onPress(track)}
         onLongPress={handleLongPress}
-        delayLongPress={500}
+        delayLongPress={300}
         activeOpacity={0.7}
       >
         {showArtwork && (
-          <Image
-            source={artworkSource}
-            style={styles.artwork}
-            resizeMode="cover"
-          />
+          <View style={styles.artworkContainer}>
+            <Image
+              source={artworkSource}
+              style={styles.artwork}
+              resizeMode="cover"
+            />
+            {isPlaying && (
+              <View style={styles.playingIndicator}>
+                <Ionicons name="musical-notes" size={16} color="#FFFFFF" />
+              </View>
+            )}
+          </View>
         )}
         
         <View style={styles.infoContainer}>
-          <Text 
-            style={[
-              styles.title, 
-              { color: isPlaying ? COLORS.primary : textColor }
-            ]}
+          <Text
+            style={[styles.title, { color: textColor }]}
             numberOfLines={1}
           >
             {formatTitle(track.title)}
-            {track.isLocal && (
-              <Text style={{ color: COLORS.primary }}> • Local</Text>
-            )}
           </Text>
           
-          <Text 
-            style={[styles.artist, { color: secondaryTextColor }]}
-            numberOfLines={1}
-          >
-            {track.artist}
-            {showAlbum && track.album !== 'Unknown Album' && ` • ${track.album}`}
-          </Text>
+          <View style={styles.subtitleContainer}>
+            <Text
+              style={[styles.artist, { color: secondaryTextColor }]}
+              numberOfLines={1}
+            >
+              {track.artist !== 'Unknown Artist' ? track.artist : 'Artiste inconnu'}
+            </Text>
+            
+            {showAlbum && track.album && track.album !== 'Unknown Album' && (
+              <>
+                <Text style={[styles.separator, { color: secondaryTextColor }]}>•</Text>
+                <Text
+                  style={[styles.album, { color: secondaryTextColor }]}
+                  numberOfLines={1}
+                >
+                  {track.album}
+                </Text>
+              </>
+            )}
+          </View>
         </View>
         
-        <View style={styles.rightContainer}>
-          {showDuration && (
-            <Text style={[styles.duration, { color: secondaryTextColor }]}>
-              {formatTime(track.duration)}
-            </Text>
-          )}
-          
-          {showOptions && (
-            <TouchableOpacity
-              style={styles.optionsButton}
-              onPress={handleOptionsPress}
-              hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-            >
-              <Ionicons 
-                name="ellipsis-horizontal" 
-                size={20} 
-                color={secondaryTextColor} 
-              />
-            </TouchableOpacity>
-          )}
-        </View>
+        {showDuration && (
+          <Text style={[styles.duration, { color: secondaryTextColor }]}>
+            {formatTime(track.duration)}
+          </Text>
+        )}
+        
+        {showOptions && (
+          <TouchableOpacity
+            style={styles.optionsButton}
+            onPress={handleOptionsPress}
+            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+          >
+            <Ionicons
+              name="ellipsis-horizontal"
+              size={20}
+              color={secondaryTextColor}
+            />
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
       
       {/* Menu d'options */}
@@ -351,48 +373,92 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: SPACING.medium,
     paddingHorizontal: SPACING.medium,
+    borderRadius: 12,
+    marginHorizontal: 2,
+    marginVertical: 1,
+  },
+  playingContainer: {
+    backgroundColor: 'rgba(255, 45, 85, 0.1)',
+  },
+  artworkContainer: {
+    position: 'relative',
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginRight: SPACING.medium,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   artwork: {
-    width: LAYOUT.albumArt.small,
-    height: LAYOUT.albumArt.small,
-    borderRadius: LAYOUT.borderRadius.small,
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
+  },
+  playingIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: 'rgba(255, 45, 85, 0.9)',
+    borderTopLeftRadius: 8,
+    padding: 4,
   },
   infoContainer: {
     flex: 1,
-    marginLeft: SPACING.medium,
     justifyContent: 'center',
+    marginRight: SPACING.small,
   },
   title: {
     fontFamily: FONTS.medium,
     fontSize: FONTS.sizes.medium,
     marginBottom: 4,
   },
+  subtitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'nowrap',
+  },
   artist: {
     fontFamily: FONTS.regular,
     fontSize: FONTS.sizes.small,
   },
-  rightContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  separator: {
+    marginHorizontal: 4,
+    fontSize: FONTS.sizes.small,
+  },
+  album: {
+    fontFamily: FONTS.regular,
+    fontSize: FONTS.sizes.small,
+    flex: 1,
   },
   duration: {
     fontFamily: FONTS.regular,
     fontSize: FONTS.sizes.small,
-    marginRight: SPACING.small,
+    marginLeft: SPACING.small,
+    minWidth: 45,
+    textAlign: 'right',
   },
   optionsButton: {
-    padding: SPACING.xs,
+    padding: SPACING.small,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   menuContainer: {
-    width: '80%',
+    width: '85%',
     borderRadius: LAYOUT.borderRadius.medium,
     overflow: 'hidden',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   menuItem: {
     flexDirection: 'row',
@@ -416,6 +482,11 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
     borderRadius: LAYOUT.borderRadius.medium,
     overflow: 'hidden',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   playlistModalHeader: {
     flexDirection: 'row',
@@ -443,7 +514,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    backgroundColor: 'rgba(255, 45, 85, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.medium,
@@ -475,6 +546,11 @@ const styles = StyleSheet.create({
     padding: SPACING.medium,
     margin: SPACING.medium,
     borderRadius: LAYOUT.borderRadius.small,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
   createPlaylistText: {
     fontFamily: FONTS.medium,

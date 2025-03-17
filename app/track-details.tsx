@@ -20,6 +20,7 @@ import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import SimpleSlider from '../components/SimpleSlider';
 import AppHeader from '../components/AppHeader';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
@@ -75,10 +76,10 @@ export default function TrackDetailsScreen() {
   // Générer une couleur de fond basée sur le titre et l'artiste pour l'artwork par défaut
   const placeholderColor = getColorFromString(`${track.title}${track.artist}`);
   
-  // Préparer la source de l'image
-  const artworkSource = track.artwork && !imageError
+  // Determine artwork source
+  const artworkSource = track?.artwork 
     ? { uri: track.artwork } 
-    : { uri: getPlaceholderArtwork(track.title, track.artist) };
+    : { uri: getPlaceholderArtwork(track?.title || 'Unknown', track?.artist || 'Unknown') };
   
   // Trouver les playlists qui contiennent cette piste
   const trackPlaylists = playlists.filter(playlist => 
@@ -119,6 +120,11 @@ export default function TrackDetailsScreen() {
       ]
     );
   };
+
+  const handleOptionsPress = () => {
+    // Afficher les options pour la piste
+    handleDelete();
+  };
   
   const handleSeekStart = useCallback(() => {
     setIsSeeking(true);
@@ -144,12 +150,6 @@ export default function TrackDetailsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [playPreviousTrack]);
   
-  // Styles dynamiques qui dépendent de isDark
-  const favoriteButtonStyle = {
-    ...styles.favoriteButton,
-    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-  };
-  
   // Déterminer si la piste actuelle est en cours de lecture
   const isCurrentTrack = currentTrack?.id === track.id;
   
@@ -157,172 +157,186 @@ export default function TrackDetailsScreen() {
     <View style={[styles.container, { backgroundColor }]}>
       <AppHeader 
         title="Track Details" 
-        showBackButton={true}
-        onBackPress={() => router.back()}
+        leftComponent={
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color={textColor} />
+          </TouchableOpacity>
+        }
         rightComponent={
-          <TouchableOpacity
-            style={styles.optionsButton}
-            onPress={handleDelete}
-          >
-            <Ionicons name="trash-outline" size={24} color={COLORS.primary} />
+          <TouchableOpacity onPress={handleOptionsPress}>
+            <Ionicons name="ellipsis-horizontal" size={24} color={textColor} />
           </TouchableOpacity>
         }
       />
       
-      <View style={styles.content}>
-        {/* Artwork */}
-        <View 
-          style={[
-            styles.artworkContainer, 
-            { backgroundColor: placeholderColor }
-          ]}
-        >
-          {imageLoading && (
-            <View style={styles.imageLoadingContainer}>
-              <ActivityIndicator size="large" color="#FFFFFF" />
-            </View>
-          )}
-          
-          <Image 
-            source={artworkSource} 
-            style={styles.artwork} 
-            resizeMode="cover"
-            onLoadStart={() => setImageLoading(true)}
-            onLoadEnd={() => setImageLoading(false)}
-            onError={() => {
-              setImageLoading(false);
-              setImageError(true);
-            }}
-          />
-          
-          {!track.artwork || imageError ? (
-            <View style={styles.placeholderTextContainer}>
-              <Ionicons name="musical-note" size={80} color="white" />
-            </View>
-          ) : null}
-        </View>
-        
-        {/* Track Info */}
-        <View style={styles.infoContainer}>
-          <Text style={[styles.title, { color: textColor }]}>
-            {cleanTitle}
-          </Text>
-          <Text style={[styles.artist, { color: secondaryTextColor }]}>
-            {track.artist !== 'Unknown Artist' ? track.artist : 'Artiste inconnu'}
-          </Text>
-          <Text style={[styles.album, { color: secondaryTextColor }]}>
-            {track.album !== 'Unknown Album' ? track.album : 'Album inconnu'}
-          </Text>
-          <Text style={[styles.duration, { color: secondaryTextColor }]}>
-            Durée: {formatTime(track.duration)}
-          </Text>
-          
-          {track.isLocal && (
-            <View style={styles.badgeContainer}>
-              <Text style={[styles.localBadge, { color: COLORS.primary }]}>
-                Fichier local
-              </Text>
-            </View>
-          )}
-        </View>
-        
-        {/* Timeline / Progress Bar */}
-        <View style={styles.timelineContainer}>
-          <SimpleSlider
-            value={isCurrentTrack ? sliderValue : 0}
-            minimumValue={0}
-            maximumValue={1}
-            minimumTrackTintColor={COLORS.primary}
-            maximumTrackTintColor={isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}
-            thumbTintColor={COLORS.primary}
-            onSlidingStart={handleSeekStart}
-            onSlidingComplete={handleSeekComplete}
-            style={styles.slider}
-          />
-          
-          <View style={styles.timeTextContainer}>
-            <Text style={[styles.timeText, { color: secondaryTextColor }]}>
-              {isCurrentTrack ? formatTime(playbackPosition) : '00:00'}
-            </Text>
-            <Text style={[styles.timeText, { color: secondaryTextColor }]}>
-              {formatTime(track.duration)}
-            </Text>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.content}>
+          {/* Artwork */}
+          <View style={styles.artworkContainer}>
+            <Image 
+              source={artworkSource} 
+              style={styles.artwork} 
+              resizeMode="cover"
+              onLoadStart={() => setImageLoading(true)}
+              onLoadEnd={() => setImageLoading(false)}
+              onError={() => {
+                setImageLoading(false);
+                setImageError(true);
+              }}
+            />
+            <LinearGradient
+              colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.3)']}
+              style={styles.artworkOverlay}
+            />
+            {isPlaying && (
+              <View style={styles.playingIndicator}>
+                <Ionicons name="musical-notes" size={24} color="#fff" />
+              </View>
+            )}
           </View>
-        </View>
-        
-        {/* Playback Controls */}
-        <View style={styles.playbackControlsContainer}>
-          <TouchableOpacity 
-            style={styles.controlButton}
-            onPress={handlePrevious}
-          >
-            <Ionicons 
-              name="play-skip-back" 
-              size={28} 
-              color={textColor} 
-            />
-          </TouchableOpacity>
           
-          {/* Play Button */}
-          <TouchableOpacity 
-            style={[styles.playButton, { backgroundColor: COLORS.primary }]}
-            onPress={handlePlayPause}
-          >
-            <Ionicons 
-              name={(isCurrentTrack && isPlaying) ? "pause" : "play"} 
-              size={28} 
-              color="#FFFFFF" 
-            />
-            <Text style={styles.playButtonText}>
-              {(isCurrentTrack && isPlaying) ? "Pause" : "Lire"}
+          {/* Track Info */}
+          <View style={styles.infoContainer}>
+            <Text style={[styles.title, { color: textColor }]}>
+              {cleanTitle}
             </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.controlButton}
-            onPress={handleNext}
-          >
-            <Ionicons 
-              name="play-skip-forward" 
-              size={28} 
-              color={textColor} 
-            />
-          </TouchableOpacity>
-        </View>
-        
-        {/* Actions */}
-        <View style={styles.actionsContainer}>
-          {/* Favorite Button */}
-          <TouchableOpacity 
-            style={favoriteButtonStyle}
-            onPress={handleToggleFavorite}
-          >
-            <Ionicons 
-              name={track.isFavorite ? "heart" : "heart-outline"} 
-              size={28} 
-              color={track.isFavorite ? COLORS.primary : textColor} 
-            />
-          </TouchableOpacity>
-        </View>
-        
-        {/* Playlists */}
-        {trackPlaylists.length > 0 && (
-          <View style={styles.playlistsSection}>
-            <Text style={[styles.sectionTitle, { color: textColor }]}>
-              Dans les playlists
+            <Text style={[styles.artist, { color: secondaryTextColor }]}>
+              {track.artist !== 'Unknown Artist' ? track.artist : 'Artiste inconnu'}
+            </Text>
+            <Text style={[styles.album, { color: secondaryTextColor }]}>
+              {track.album !== 'Unknown Album' ? track.album : 'Album inconnu'}
             </Text>
             
-            {trackPlaylists.map(playlist => (
-              <View key={playlist.id} style={[styles.playlistItem, { backgroundColor: isDark ? COLORS.cardDark : COLORS.card }]}>
-                <Ionicons name="list" size={20} color={secondaryTextColor} />
-                <Text style={[styles.playlistName, { color: textColor }]}>
-                  {playlist.name}
+            <View style={styles.badgeContainer}>
+              {track.isLocal && (
+                <View style={styles.badge}>
+                  <Ionicons name="folder" size={14} color={COLORS.primary} />
+                  <Text style={[styles.badgeText, { color: COLORS.primary }]}>
+                    Fichier local
+                  </Text>
+                </View>
+              )}
+              
+              <View style={styles.badge}>
+                <Ionicons name="time-outline" size={14} color={secondaryTextColor} />
+                <Text style={[styles.badgeText, { color: secondaryTextColor }]}>
+                  {formatTime(track.duration)}
                 </Text>
               </View>
-            ))}
+              
+              {track.isFavorite && (
+                <View style={styles.badge}>
+                  <Ionicons name="heart" size={14} color={COLORS.primary} />
+                  <Text style={[styles.badgeText, { color: COLORS.primary }]}>
+                    Favori
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
-        )}
-      </View>
+          
+          {/* Timeline / Progress Bar */}
+          <View style={styles.timelineContainer}>
+            <SimpleSlider
+              value={isCurrentTrack ? sliderValue : 0}
+              minimumValue={0}
+              maximumValue={1}
+              minimumTrackTintColor={COLORS.primary}
+              maximumTrackTintColor={isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}
+              thumbTintColor={COLORS.primary}
+              onSlidingStart={handleSeekStart}
+              onSlidingComplete={handleSeekComplete}
+              style={styles.slider}
+            />
+            
+            <View style={styles.timeTextContainer}>
+              <Text style={[styles.timeText, { color: secondaryTextColor }]}>
+                {isCurrentTrack ? formatTime(playbackPosition) : '00:00'}
+              </Text>
+              <Text style={[styles.timeText, { color: secondaryTextColor }]}>
+                {formatTime(track.duration)}
+              </Text>
+            </View>
+          </View>
+          
+          {/* Playback Controls */}
+          <View style={styles.playbackControlsContainer}>
+            <TouchableOpacity 
+              style={styles.controlButton}
+              onPress={handlePrevious}
+            >
+              <Ionicons 
+                name="play-skip-back" 
+                size={28} 
+                color={textColor} 
+              />
+            </TouchableOpacity>
+            
+            {/* Play Button */}
+            <TouchableOpacity 
+              style={[styles.playButton, { backgroundColor: COLORS.primary }]}
+              onPress={handlePlayPause}
+            >
+              <Ionicons 
+                name={(isCurrentTrack && isPlaying) ? "pause" : "play"} 
+                size={28} 
+                color="#FFFFFF" 
+              />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.controlButton}
+              onPress={handleNext}
+            >
+              <Ionicons 
+                name="play-skip-forward" 
+                size={28} 
+                color={textColor} 
+              />
+            </TouchableOpacity>
+          </View>
+          
+          {/* Actions */}
+          <View style={styles.actionsContainer}>
+            {/* Favorite Button */}
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
+              onPress={handleToggleFavorite}
+            >
+              <Ionicons 
+                name={track.isFavorite ? "heart" : "heart-outline"} 
+                size={24} 
+                color={track.isFavorite ? COLORS.primary : textColor} 
+              />
+              <Text style={[styles.actionText, { color: track.isFavorite ? COLORS.primary : textColor }]}>
+                {track.isFavorite ? 'Favori' : 'Ajouter aux favoris'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Playlists */}
+          {trackPlaylists.length > 0 && (
+            <View style={styles.playlistsSection}>
+              <Text style={[styles.sectionTitle, { color: textColor }]}>
+                Dans les playlists
+              </Text>
+              
+              {trackPlaylists.map(playlist => (
+                <View key={playlist.id} style={[styles.playlistItem, { backgroundColor: isDark ? COLORS.cardDark : COLORS.card }]}>
+                  <Ionicons name="list" size={20} color={secondaryTextColor} />
+                  <Text style={[styles.playlistName, { color: textColor }]}>
+                    {playlist.name}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -331,95 +345,99 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: LAYOUT.miniPlayerHeight + SPACING.large,
+  },
   content: {
     flex: 1,
     paddingHorizontal: SPACING.large,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: LAYOUT.miniPlayerHeight + SPACING.medium,
+    paddingBottom: SPACING.large,
   },
   artworkContainer: {
-    width: width - SPACING.large * 2,
-    height: width * 0.6,
+    position: 'relative',
+    width: Dimensions.get('window').width * 0.8,
+    height: Dimensions.get('window').width * 0.8,
+    alignSelf: 'center',
+    marginVertical: SPACING.large,
     borderRadius: 16,
-    marginTop: SPACING.medium,
     overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 8,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   artwork: {
     width: '100%',
     height: '100%',
+    borderRadius: 16,
   },
-  imageLoadingContainer: {
+  artworkOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
+    borderRadius: 16,
   },
-  placeholderTextContainer: {
+  playingIndicator: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    bottom: 10,
+    right: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    padding: 8,
   },
   infoContainer: {
     width: '100%',
-    marginTop: SPACING.large,
+    marginTop: SPACING.medium,
     alignItems: 'center',
   },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: FONTS.sizes.large,
+    fontSize: FONTS.sizes.xl,
     textAlign: 'center',
     marginBottom: SPACING.small,
   },
   artist: {
     fontFamily: FONTS.medium,
-    fontSize: FONTS.sizes.medium,
+    fontSize: FONTS.sizes.large,
     textAlign: 'center',
     marginBottom: SPACING.small,
   },
   album: {
     fontFamily: FONTS.regular,
-    fontSize: FONTS.sizes.small,
-    textAlign: 'center',
-    marginBottom: SPACING.small,
-  },
-  duration: {
-    fontFamily: FONTS.regular,
-    fontSize: FONTS.sizes.small,
+    fontSize: FONTS.sizes.medium,
     textAlign: 'center',
     marginBottom: SPACING.medium,
   },
   badgeContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     marginTop: SPACING.small,
+    marginBottom: SPACING.large,
   },
-  localBadge: {
-    fontFamily: FONTS.medium,
-    fontSize: FONTS.sizes.small,
-    textAlign: 'center',
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: SPACING.medium,
     paddingVertical: SPACING.xs,
-    borderRadius: LAYOUT.borderRadius.small,
-    overflow: 'hidden',
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: COLORS.primary,
+    borderColor: 'rgba(150, 150, 150, 0.3)',
+    marginHorizontal: SPACING.small,
+    marginBottom: SPACING.small,
+  },
+  badgeText: {
+    fontFamily: FONTS.medium,
+    fontSize: FONTS.sizes.small,
+    marginLeft: 4,
   },
   timelineContainer: {
     width: '100%',
@@ -446,40 +464,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
-    marginBottom: SPACING.medium,
+    marginVertical: SPACING.large,
   },
   controlButton: {
     padding: SPACING.medium,
-    marginHorizontal: SPACING.medium,
-  },
-  actionsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
-    marginTop: SPACING.small,
-  },
-  favoriteButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: SPACING.medium,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    marginHorizontal: SPACING.large,
   },
   playButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  actionsContainer: {
+    width: '100%',
+    marginTop: SPACING.medium,
+  },
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: SPACING.medium,
     paddingHorizontal: SPACING.large,
     borderRadius: 30,
-    minWidth: 150,
+    marginBottom: SPACING.medium,
   },
-  playButtonText: {
+  actionText: {
     fontFamily: FONTS.medium,
     fontSize: FONTS.sizes.medium,
-    color: '#FFFFFF',
     marginLeft: SPACING.small,
   },
   playlistsSection: {
@@ -503,9 +521,5 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: FONTS.sizes.medium,
     marginLeft: SPACING.small,
-  },
-  optionsButton: {
-    padding: SPACING.small,
-    marginRight: -SPACING.small,
   },
 });

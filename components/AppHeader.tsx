@@ -9,6 +9,7 @@ interface AppHeaderProps {
   title: string;
   showBackButton?: boolean;
   onBackPress?: () => void;
+  leftComponent?: React.ReactNode;
   rightComponent?: React.ReactNode;
 }
 
@@ -16,6 +17,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   title,
   showBackButton = false,
   onBackPress,
+  leftComponent,
   rightComponent,
 }) => {
   const colorScheme = useColorScheme();
@@ -30,7 +32,9 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       style={styles.container}
     >
       <View style={styles.content}>
-        {showBackButton ? (
+        {leftComponent ? (
+          leftComponent
+        ) : showBackButton ? (
           <TouchableOpacity
             style={styles.backButton}
             onPress={onBackPress}
