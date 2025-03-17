@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -43,6 +43,12 @@ const PlaylistItem: React.FC<PlaylistItemProps> = ({
   
   // Generate a color based on the playlist name
   const color = getColorFromString(playlist.name);
+  
+  // Optimiser le calcul du nombre de pistes uniques avec useMemo
+  const uniqueTrackCount = useMemo(() => {
+    if (trackCount !== undefined) return trackCount;
+    return new Set(playlist.tracks).size;
+  }, [playlist.tracks, trackCount]);
   
   const handlePress = () => {
     router.push(`/playlist-details?playlistId=${playlist.id}`);
@@ -116,7 +122,7 @@ const PlaylistItem: React.FC<PlaylistItemProps> = ({
             style={[styles.trackCount, { color: secondaryTextColor }]}
             numberOfLines={1}
           >
-            {trackCount || playlist.tracks.length} {(trackCount || playlist.tracks.length) === 1 ? 'song' : 'songs'}
+            {uniqueTrackCount} {uniqueTrackCount === 1 ? 'song' : 'songs'}
           </Text>
         </View>
         

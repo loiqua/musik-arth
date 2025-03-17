@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
+  Alert,
 } from 'react-native';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { COLORS, FONTS, LAYOUT, SPACING } from '../constants/Theme';
@@ -31,7 +32,10 @@ const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
   const isDark = colorScheme === 'dark';
   
   const [playlistName, setPlaylistName] = useState('');
-  const createPlaylist = useMusicStore(state => state.createPlaylist);
+  const { createPlaylist, playlists } = useMusicStore(state => ({
+    createPlaylist: state.createPlaylist,
+    playlists: state.playlists
+  }));
   
   const textColor = isDark ? COLORS.textDark : COLORS.text;
   const backgroundColor = isDark ? COLORS.cardDark : COLORS.card;
@@ -40,6 +44,22 @@ const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
   
   const handleCreate = () => {
     if (playlistName.trim()) {
+      // Vérifier si une playlist avec ce nom existe déjà
+      const playlistExists = playlists.some(
+        playlist => playlist.name.toLowerCase() === playlistName.trim().toLowerCase()
+      );
+      
+      if (playlistExists) {
+        Alert.alert(
+          "Nom déjà utilisé",
+          `Une playlist nommée "${playlistName.trim()}" existe déjà. Veuillez choisir un autre nom.`,
+          [
+            { text: "OK" }
+          ]
+        );
+        return;
+      }
+      
       createPlaylist(playlistName.trim());
       setPlaylistName('');
       onClose();

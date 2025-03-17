@@ -30,7 +30,13 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
   const currentTrack = useMusicStore(state => state.currentTrack);
   
   // Vérifier si currentTrack existe avant de continuer
-  if (!currentTrack) return null;
+  if (!currentTrack) {
+    // Fermer automatiquement si aucune piste n'est en cours
+    useEffect(() => {
+      onClose();
+    }, []);
+    return null;
+  }
   
   const isPlaying = useMusicStore(state => state.isPlaying);
   const playbackPosition = useMusicStore(state => state.playbackPosition);
@@ -52,6 +58,14 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
   // Animation for the player
   const translateY = useMemo(() => new Animated.Value(0), []);
   
+  // Nettoyage de l'animation lorsque le composant est démonté
+  useEffect(() => {
+    return () => {
+      // Arrêter toutes les animations en cours
+      translateY.stopAnimation();
+    };
+  }, [translateY]);
+  
   // Pan responder for swipe down to close - optimisé avec useMemo
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -67,7 +81,10 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
           toValue: height,
           duration: 300,
           useNativeDriver: true,
-        }).start(onClose);
+        }).start(() => {
+          // Après l'animation, fermer proprement le component
+          onClose();
+        });
       } else {
         // Reset position
         Animated.spring(translateY, {

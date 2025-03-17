@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import React from 'react';
+import React, { memo } from 'react';
 import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { COLORS, FONTS, LAYOUT, SHADOWS, SPACING } from '../constants/Theme';
@@ -14,7 +14,8 @@ interface MiniPlayerProps {
 
 const { width } = Dimensions.get('window');
 
-const MiniPlayer: React.FC<MiniPlayerProps> = ({ onPress }) => {
+// Utiliser memo pour éviter les re-rendus inutiles
+const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress }) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   
@@ -26,6 +27,7 @@ const MiniPlayer: React.FC<MiniPlayerProps> = ({ onPress }) => {
   const playPreviousTrack = useMusicStore(state => state.playPreviousTrack);
   const toggleFavorite = useMusicStore(state => state.toggleFavorite);
   
+  // Retourner null si aucune piste n'est en cours
   if (!currentTrack) return null;
   
   const artworkSource = currentTrack.artwork 
@@ -146,7 +148,7 @@ const MiniPlayer: React.FC<MiniPlayerProps> = ({ onPress }) => {
       </View>
     </BlurView>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

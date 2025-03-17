@@ -181,6 +181,9 @@ interface MusicState {
   shuffleMode: boolean;
   repeatMode: 'off' | 'all' | 'one';
   
+  // Système
+  saveDebounceTimeout?: NodeJS.Timeout;
+  
   // Actions
   loadTracks: () => Promise<void>;
   requestPermissions: () => Promise<void>;
@@ -623,6 +626,18 @@ export const useMusicStore = create<MusicState>((set, get) => {
   },
   
   createPlaylist: (name: string) => {
+    // Vérifier si une playlist avec ce nom existe déjà (recherche insensible à la casse)
+    const playlistExists = get().playlists.some(
+      playlist => playlist.name.toLowerCase() === name.toLowerCase()
+    );
+    
+    // Si une playlist avec ce nom existe déjà, ne pas créer de nouvelle playlist
+    if (playlistExists) {
+      // On pourrait ajouter une notification à l'utilisateur ici si on avait un système de notification
+      console.log('Une playlist avec ce nom existe déjà');
+      return;
+    }
+    
     const newPlaylist: Playlist = {
       id: Date.now().toString(),
       name,
@@ -652,6 +667,15 @@ export const useMusicStore = create<MusicState>((set, get) => {
   },
   
   addTrackToPlaylist: (playlistId: string, trackId: string) => {
+    // Vérifier si la piste est déjà dans la playlist
+    const playlist = get().playlists.find(p => p.id === playlistId);
+    
+    if (playlist && playlist.tracks.includes(trackId)) {
+      // La piste est déjà dans la playlist, ne rien faire
+      console.log('La piste est déjà dans la playlist');
+      return;
+    }
+    
     set(state => ({
       playlists: state.playlists.map(playlist => 
         playlist.id === playlistId 
@@ -783,12 +807,31 @@ export const useMusicStore = create<MusicState>((set, get) => {
   
   saveTracksToStorage: async () => {
     try {
-      const { tracks } = get();
+      const { tracks, playlists } = get();
+      
       // Ne sauvegarder que les pistes locales
       const localTracks = tracks.filter(track => track.isLocal);
-      await AsyncStorage.setItem(TRACKS_STORAGE_KEY, JSON.stringify(localTracks));
+      
+      // Utilisons un taux limiteur (debounce) pour éviter des sauvegardes trop fréquentes
+      // Stocker temporairement les données à sauvegarder
+      if (get().saveDebounceTimeout) {
+        clearTimeout(get().saveDebounceTimeout);
+      }
+      
+      const timeout = setTimeout(async () => {
+        // Sauvegarder les pistes locales
+        await AsyncStorage.setItem(TRACKS_STORAGE_KEY, JSON.stringify(localTracks));
+        
+        // Sauvegarder également les playlists
+        await AsyncStorage.setItem(PLAYLISTS_STORAGE_KEY, JSON.stringify(playlists));
+        
+        console.log('Data saved to storage successfully');
+      }, 300); // Délai de 300ms pour regrouper les modifications multiples
+      
+      // Stocker le timeout pour pouvoir l'annuler si nécessaire
+      set({ saveDebounceTimeout: timeout });
     } catch (error) {
-      console.error('Error saving tracks to storage:', error);
+      console.error('Error saving data to storage:', error);
     }
   },
   

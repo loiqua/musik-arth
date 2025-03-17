@@ -53,7 +53,7 @@ export default function LibraryScreen() {
   
   const router = useRouter();
   
-  // Request permissions and load tracks when the screen is focused
+  // Charger les playlists après avoir modifié le storage
   useFocusEffect(
     React.useCallback(() => {
       if (!hasPermission) {
@@ -286,6 +286,15 @@ export default function LibraryScreen() {
     );
   }
   
+  // Déterminer ce qui doit être rendu
+  const renderPlayerComponents = () => {
+    // Ne montrer le MiniPlayer que s'il y a une piste en cours
+    if (currentTrack) {
+      return <MiniPlayer onPress={() => router.push(`/track-details?trackId=${currentTrack.id}`)} />;
+    }
+    return null;
+  };
+
   return (
     <View style={[styles.container, { backgroundColor }]}>
       <AppHeader 
@@ -456,26 +465,27 @@ export default function LibraryScreen() {
         </>
       )}
       
-      {/* Mini Player */}
-      {currentTrack && (
-        <MiniPlayer onPress={() => router.push(`/track-details?trackId=${currentTrack.id}`)} />
+      {/* Mini Player - Rendu de manière conditionnelle via la fonction */}
+      {renderPlayerComponents()}
+      
+      {/* Modals - assurons-nous qu'ils sont exclusifs et ne s'affichent pas en même temps */}
+      {isCreatePlaylistVisible && (
+        <CreatePlaylistModal
+          visible={isCreatePlaylistVisible}
+          onClose={() => setIsCreatePlaylistVisible(false)}
+        />
       )}
       
-      {/* Full Screen Player */}
+      {isAddOnlineTrackVisible && (
+        <AddOnlineTrackModal
+          visible={isAddOnlineTrackVisible}
+          onClose={() => setIsAddOnlineTrackVisible(false)}
+        />
+      )}
+      
       {isPlayerVisible && (
         <FullPlayer onClose={() => setIsPlayerVisible(false)} />
       )}
-      
-      {/* Create Playlist Modal */}
-      <CreatePlaylistModal
-        visible={isCreatePlaylistVisible}
-        onClose={() => setIsCreatePlaylistVisible(false)}
-      />
-      
-      <AddOnlineTrackModal
-        visible={isAddOnlineTrackVisible}
-        onClose={() => setIsAddOnlineTrackVisible(false)}
-      />
     </View>
   );
 }
