@@ -68,22 +68,34 @@ export default function LibraryScreen() {
   const artistSections = useMemo(() => {
     const artistMap = new Map<string, { tracks: Track[], artwork: string | null }>();
     
+    // Pour chaque artiste, on ne garde que les informations sur l'artiste
+    // et ses albums, mais pas les titres individuels qui seront dans la section Songs
     tracks.forEach(track => {
       const artistName = track.artist || 'Unknown Artist';
       
       if (!artistMap.has(artistName)) {
         artistMap.set(artistName, { 
           tracks: [],
-          artwork: track.artwork // Use the first track's artwork for the artist
+          artwork: track.artwork || getArtistPlaceholderArtwork(artistName)
         });
       }
       
-      artistMap.get(artistName)!.tracks.push(track);
+      // On n'ajoute PAS la piste directement ici
+      // Pour éviter la duplication, on compte juste le nombre de pistes
+      const artistData = artistMap.get(artistName)!;
+      if (!artistData.tracks.some(t => t.id === track.id)) {
+        artistData.tracks.push(track);
+      }
     });
     
     // Convert map to array and sort by artist name
     return Array.from(artistMap.entries())
-      .map(([title, { tracks, artwork }]) => ({ title, data: tracks, artwork }))
+      .map(([title, { tracks, artwork }]) => ({ 
+        title, 
+        data: [], // On n'affiche pas les pistes ici
+        trackCount: tracks.length,
+        artwork 
+      }))
       .sort((a, b) => a.title.localeCompare(b.title));
   }, [tracks]);
   
@@ -97,7 +109,7 @@ export default function LibraryScreen() {
       if (!albumMap.has(albumName)) {
         albumMap.set(albumName, { 
           tracks: [],
-          artwork: track.artwork // Use the first track's artwork for the album
+          artwork: track.artwork || getAlbumPlaceholderArtwork(albumName, track.artist)
         });
       }
       
@@ -106,7 +118,12 @@ export default function LibraryScreen() {
     
     // Convert map to array and sort by album name
     return Array.from(albumMap.entries())
-      .map(([title, { tracks, artwork }]) => ({ title, data: tracks, artwork }))
+      .map(([title, { tracks, artwork }]) => ({ 
+        title, 
+        data: [], // On n'affiche pas les pistes individuelles ici
+        trackCount: tracks.length,
+        artwork 
+      }))
       .sort((a, b) => a.title.localeCompare(b.title));
   }, [tracks]);
   
@@ -176,6 +193,64 @@ export default function LibraryScreen() {
           </Text>
           <Text style={[styles.sectionHeaderCount, { color: secondaryTextColor }]}>
             {section.data.length} {section.data.length === 1 ? 'song' : 'songs'}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={24} color={secondaryTextColor} />
+      </TouchableOpacity>
+    );
+  };
+  
+  const renderArtistItem = ({ item }: { item: any }) => {
+    const artistName = item.title;
+    const artistArtwork = item.artwork || getArtistPlaceholderArtwork(artistName);
+    
+    return (
+      <TouchableOpacity 
+        style={[
+          styles.artistItem, 
+          { backgroundColor: isDark ? COLORS.cardDark : COLORS.card }
+        ]}
+        onPress={() => router.push(`/artist-details?name=${encodeURIComponent(artistName)}`)}
+      >
+        <Image 
+          source={{ uri: artistArtwork }} 
+          style={styles.artistImage}
+        />
+        <View style={styles.artistInfo}>
+          <Text style={[styles.artistName, { color: textColor }]}>
+            {artistName}
+          </Text>
+          <Text style={[styles.artistStat, { color: secondaryTextColor }]}>
+            {item.trackCount} {item.trackCount === 1 ? 'song' : 'songs'}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={24} color={secondaryTextColor} />
+      </TouchableOpacity>
+    );
+  };
+  
+  const renderAlbumItem = ({ item }: { item: any }) => {
+    const albumName = item.title;
+    const albumArtwork = item.artwork || getAlbumPlaceholderArtwork(albumName);
+    
+    return (
+      <TouchableOpacity 
+        style={[
+          styles.albumItem, 
+          { backgroundColor: isDark ? COLORS.cardDark : COLORS.card }
+        ]}
+        onPress={() => router.push(`/album-details?name=${encodeURIComponent(albumName)}`)}
+      >
+        <Image 
+          source={{ uri: albumArtwork }} 
+          style={styles.albumImage}
+        />
+        <View style={styles.albumInfo}>
+          <Text style={[styles.albumName, { color: textColor }]}>
+            {albumName}
+          </Text>
+          <Text style={[styles.albumStat, { color: secondaryTextColor }]}>
+            {item.trackCount} {item.trackCount === 1 ? 'song' : 'songs'}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={24} color={secondaryTextColor} />
@@ -361,15 +436,7 @@ export default function LibraryScreen() {
             <SectionList
               sections={artistSections}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <TrackItem
-                  track={item}
-                  onPress={handleTrackPress}
-                  isPlaying={currentTrack?.id === item.id}
-                  showArtwork
-                  showAlbum
-                />
-              )}
+              renderItem={renderArtistItem}
               renderSectionHeader={renderSectionHeader}
               ListEmptyComponent={renderEmptyLibrary}
               contentContainerStyle={styles.listContent}
@@ -379,15 +446,7 @@ export default function LibraryScreen() {
             <SectionList
               sections={albumSections}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <TrackItem
-                  track={item}
-                  onPress={handleTrackPress}
-                  isPlaying={currentTrack?.id === item.id}
-                  showArtwork
-                  showDuration
-                />
-              )}
+              renderItem={renderAlbumItem}
               renderSectionHeader={renderSectionHeader}
               ListEmptyComponent={renderEmptyLibrary}
               contentContainerStyle={styles.listContent}
@@ -596,5 +655,57 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: FONTS.sizes.medium,
     color: '#FFFFFF',
+  },
+  artistItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.medium,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  artistImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: SPACING.medium,
+  },
+  artistInfo: {
+    flex: 1,
+  },
+  artistName: {
+    fontFamily: FONTS.bold,
+    fontSize: FONTS.sizes.medium,
+  },
+  artistStat: {
+    fontFamily: FONTS.regular,
+    fontSize: FONTS.sizes.small,
+    marginTop: 2,
+    opacity: 0.8,
+  },
+  albumItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.medium,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+  },
+  albumImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: SPACING.medium,
+  },
+  albumInfo: {
+    flex: 1,
+  },
+  albumName: {
+    fontFamily: FONTS.bold,
+    fontSize: FONTS.sizes.medium,
+  },
+  albumStat: {
+    fontFamily: FONTS.regular,
+    fontSize: FONTS.sizes.small,
+    marginTop: 2,
+    opacity: 0.8,
   },
 }); 
