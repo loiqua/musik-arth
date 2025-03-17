@@ -1,0 +1,28 @@
+addTrackToPlaylist: (playlistId: string, trackId: string) => {
+  set(state => {
+    // Trouver la playlist concernée
+    const playlist = state.playlists.find(p => p.id === playlistId);
+    
+    // Si la playlist n'existe pas, ne rien changer
+    if (!playlist) return state;
+    
+    // Vérifier si la piste existe déjà dans la playlist
+    if (playlist.tracks.includes(trackId)) {
+      // La piste existe déjà, ne pas l'ajouter à nouveau
+      console.log(`La piste ${trackId} existe déjà dans la playlist ${playlistId}`);
+      return state;
+    }
+    
+    // Ajouter la piste à la playlist
+    return {
+      playlists: state.playlists.map(p => 
+        p.id === playlistId 
+          ? { ...p, tracks: [...p.tracks, trackId] } 
+          : p
+      ),
+    };
+  });
+  
+  // Save playlists to storage
+  get().saveTracksToStorage();
+}, 

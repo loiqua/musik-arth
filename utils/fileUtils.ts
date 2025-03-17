@@ -6,12 +6,11 @@ import * as FileSystem from 'expo-file-system';
  * @returns Promise<void>
  */
 export const deleteFileIfExists = async (uri: string | null): Promise<void> => {
-  if (uri) {
-    try {
-      await FileSystem.deleteAsync(uri);
-    } catch (error) {
-      console.error('Error deleting file:', error);
-    }
+  if (!uri) return;
+  try {
+    await FileSystem.deleteAsync(uri);
+  } catch (error) {
+    console.error('Error deleting file:', error);
   }
 };
 
@@ -22,7 +21,7 @@ export const deleteFileIfExists = async (uri: string | null): Promise<void> => {
  * @returns boolean
  */
 export const uriStartsWith = (uri: string | null, prefix: string): boolean => {
-  return !!uri && uri.startsWith(prefix);
+  return uri?.startsWith(prefix) ?? false;
 };
 
 /**
@@ -43,7 +42,9 @@ const deleteFile = async (uri: string): Promise<void> => {
  * @returns Promise<void>
  */
 export const deleteLocalFileIfNeeded = async (uri: string | null, isLocal?: boolean): Promise<void> => {
-  if (isLocal && uri && uri.startsWith(FileSystem.documentDirectory)) {
+  if (!uri || !isLocal || !FileSystem.documentDirectory) return;
+
+  if (uri.startsWith(FileSystem.documentDirectory)) {
     try {
       await FileSystem.deleteAsync(uri);
     } catch (error) {
@@ -51,3 +52,4 @@ export const deleteLocalFileIfNeeded = async (uri: string | null, isLocal?: bool
     }
   }
 };
+  

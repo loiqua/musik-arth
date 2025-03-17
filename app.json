@@ -75,10 +75,10 @@
         "expo-notifications",
         {
           "icon": "./assets/images/adaptive-icon.png",
-          "color": "#FF2D55",
-          "sounds": ["./assets/sounds/notification.wav"]
+          "color": "#FF2D55"
         }
-      ]
+      ],
+      "expo-image-picker"
     ],
     "experiments": {
       "typedRoutes": true
