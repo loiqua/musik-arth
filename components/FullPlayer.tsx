@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState, useCallback, useMemo, memo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, memo, useRef } from 'react';
 import {
     Animated,
     Dimensions,
@@ -54,6 +54,7 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
   
   const [sliderValue, setSliderValue] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
+  const lastUpdateTime = useRef(0);
   
   // Animation for the player
   const translateY = useMemo(() => new Animated.Value(0), []);
@@ -97,8 +98,12 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
   
   // Update slider value when playback position changes
   useEffect(() => {
-    if (!isSeeking && playbackDuration > 0) {
+    // N'actualiser la position que si ce n'est pas en cours de glissement
+    // et seulement si la différence de temps est significative (évite les mises à jour trop fréquentes)
+    const now = Date.now();
+    if (!isSeeking && playbackDuration > 0 && (now - lastUpdateTime.current > 250)) {
       setSliderValue(playbackPosition / playbackDuration);
+      lastUpdateTime.current = now;
     }
   }, [playbackPosition, playbackDuration, isSeeking]);
   
@@ -115,12 +120,16 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
   }, []);
   
   const handleSeekComplete = useCallback((value: number) => {
+    // Mettre à jour la valeur de référence pour éviter les soubresauts après le déplacement
+    lastUpdateTime.current = Date.now() + 500; // Ajouter un délai supplémentaire
+    
     const position = value * playbackDuration;
     seekTo(position);
-    // Utiliser requestAnimationFrame pour améliorer les performances
-    requestAnimationFrame(() => {
+    
+    // Utiliser un délai pour éviter les conflits de rendu
+    setTimeout(() => {
       setIsSeeking(false);
-    });
+    }, 200);
   }, [playbackDuration, seekTo]);
   
   const handleToggleFavorite = useCallback(() => {

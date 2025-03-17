@@ -1,7 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import React, { memo } from 'react';
-import { Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, memo } from 'react';
+import { 
+  Dimensions, 
+  Image, 
+  StyleSheet, 
+  Text, 
+  TouchableOpacity, 
+  View,
+  Animated
+} from 'react-native';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { COLORS, FONTS, LAYOUT, SHADOWS, SPACING } from '../constants/Theme';
 import { useMusicStore } from '../store/musicStore';
@@ -39,35 +47,36 @@ const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress }) => {
   const backgroundColor = isDark ? 'rgba(30, 30, 30, 0.9)' : 'rgba(245, 245, 245, 0.9)';
   const controlBgColor = isDark ? '#333' : '#FFF';
   
-  const handlePlayPause = () => {
+  // Optimisation des fonctions de rappel avec useCallback
+  const handlePlayPause = useCallback(() => {
     if (isPlaying) {
       pauseTrack();
     } else {
       resumeTrack();
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  };
+  }, [isPlaying, pauseTrack, resumeTrack]);
   
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     playNextTrack();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
+  }, [playNextTrack]);
   
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     playPreviousTrack();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
+  }, [playPreviousTrack]);
   
-  const handleToggleFavorite = () => {
+  const handleToggleFavorite = useCallback(() => {
     if (currentTrack) {
       toggleFavorite(currentTrack.id);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-  };
+  }, [currentTrack, toggleFavorite]);
   
   return (
     <BlurView
-      intensity={80}
+      intensity={70} // Réduire l'intensité pour améliorer les performances
       tint={isDark ? 'dark' : 'light'}
       style={[
         styles.container,
@@ -84,6 +93,9 @@ const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress }) => {
           <Image 
             source={artworkSource} 
             style={styles.artwork}
+            // Optimiser le chargement de l'image
+            fadeDuration={0}
+            resizeMethod="resize"
           />
           <View style={styles.textContainer}>
             <Text style={[styles.title, { color: textColor }]} numberOfLines={1}>
