@@ -55,6 +55,7 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
   const [sliderValue, setSliderValue] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
   const lastUpdateTime = useRef(0);
+  const lastClickTimeRef = useRef<{ [key: string]: number }>({});
   
   // Animation for the player
   const translateY = useMemo(() => new Animated.Value(0), []);
@@ -158,6 +159,34 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, [isPlaying, pauseTrack, resumeTrack]);
   
+  // Fonction utilitaire pour éviter les clics multiples rapides
+  const debounceClick = useCallback((action: () => void, actionName: string, delay: number = 500) => {
+    const now = Date.now();
+    const lastClickTime = lastClickTimeRef.current[actionName] || 0;
+    
+    if (now - lastClickTime < delay) {
+      console.log(`Action ${actionName} ignorée (trop rapide)`);
+      return;
+    }
+    
+    lastClickTimeRef.current[actionName] = now;
+    action();
+  }, []);
+  
+  const handlePlayPreviousTrack = useCallback(() => {
+    debounceClick(() => {
+      playPreviousTrack();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }, 'previous', 500);
+  }, [playPreviousTrack, debounceClick]);
+  
+  const handlePlayNextTrack = useCallback(() => {
+    debounceClick(() => {
+      playNextTrack();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }, 'next', 500);
+  }, [playNextTrack, debounceClick]);
+  
   return (
     <Animated.View
       style={[
@@ -248,7 +277,7 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
         </TouchableOpacity>
         
         <TouchableOpacity
-          onPress={playPreviousTrack}
+          onPress={handlePlayPreviousTrack}
           style={styles.controlButton}
         >
           <Ionicons
@@ -270,7 +299,7 @@ const FullPlayer: React.FC<FullPlayerProps> = ({ onClose }) => {
         </TouchableOpacity>
         
         <TouchableOpacity
-          onPress={playNextTrack}
+          onPress={handlePlayNextTrack}
           style={styles.controlButton}
         >
           <Ionicons

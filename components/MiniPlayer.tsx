@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import React, { useCallback, memo, useEffect } from 'react';
+import React, { useCallback, memo, useEffect, useRef } from 'react';
 import { 
   Dimensions, 
   Image, 
@@ -61,6 +61,22 @@ const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress }) => {
   const backgroundColor = isDark ? 'rgba(30, 30, 30, 0.9)' : 'rgba(245, 245, 245, 0.9)';
   const controlBgColor = isDark ? '#333' : '#FFF';
   
+  const lastClickTimeRef = useRef<{ [key: string]: number }>({});
+  
+  // Fonction utilitaire pour éviter les clics multiples rapides
+  const debounceClick = useCallback((action: () => void, actionName: string, delay: number = 500) => {
+    const now = Date.now();
+    const lastClickTime = lastClickTimeRef.current[actionName] || 0;
+    
+    if (now - lastClickTime < delay) {
+      console.log(`Action ${actionName} ignorée (trop rapide)`);
+      return;
+    }
+    
+    lastClickTimeRef.current[actionName] = now;
+    action();
+  }, []);
+  
   // Optimisation des fonctions de rappel avec useCallback
   const handlePlayPause = useCallback(() => {
     if (isPlaying) {
@@ -72,14 +88,18 @@ const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress }) => {
   }, [isPlaying, pauseTrack, resumeTrack]);
   
   const handleNext = useCallback(() => {
-    playNextTrack();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [playNextTrack]);
+    debounceClick(() => {
+      playNextTrack();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }, 'next', 500);
+  }, [playNextTrack, debounceClick]);
   
   const handlePrevious = useCallback(() => {
-    playPreviousTrack();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [playPreviousTrack]);
+    debounceClick(() => {
+      playPreviousTrack();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }, 'previous', 500);
+  }, [playPreviousTrack, debounceClick]);
   
   const handleToggleFavorite = useCallback(() => {
     if (currentTrack) {

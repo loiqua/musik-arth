@@ -121,7 +121,7 @@ const showPlaybackNotification = async (track: Track, isPlaying: boolean) => {
     const notificationContent = {
       title: track.title,
       subtitle: track.artist,
-      body: `${track.album || 'Album inconnu'} • ${formatTime(track.duration)}`,
+      body: `${track.album || 'Album unknown'} • ${formatTime(track.duration)}`,
       data: { 
         trackId: track.id, 
         action: 'none',
@@ -166,7 +166,7 @@ export interface Track {
   album: string;
   duration: number;
   artwork: string | null;
-  isLocal?: boolean; // Indique si le fichier est stocké localement
+  isLocal?: boolean; // Indicates if the file is stored locally
   isFavorite?: boolean; // Track if song is favorite
 }
 
@@ -241,11 +241,14 @@ const PLAYLISTS_STORAGE_KEY = 'music_player_playlists';
 
 // Ajouter un verrou pour éviter les opérations simultanées sur le même son
 let isAudioOperationInProgress = false;
+let pendingAudioOperations: (() => Promise<any>)[] = [];
 
 // Fonction utilitaire pour exécuter une opération audio en toute sécurité
 const safeAudioOperation = async (operation: () => Promise<any>) => {
   if (isAudioOperationInProgress) {
-    console.log('Une opération audio est déjà en cours, ignorée');
+    console.log('Une opération audio est déjà en cours, mise en file d\'attente');
+    // Ajouter l'opération à la file d'attente
+    pendingAudioOperations.push(operation);
     return;
   }
   
@@ -256,6 +259,18 @@ const safeAudioOperation = async (operation: () => Promise<any>) => {
     console.error('Erreur lors de l\'opération audio:', error);
   } finally {
     isAudioOperationInProgress = false;
+    
+    // Vérifier s'il y a des opérations en attente et exécuter la suivante
+    if (pendingAudioOperations.length > 0) {
+      // Récupérer la prochaine opération en file d'attente
+      const nextOperation = pendingAudioOperations.shift();
+      if (nextOperation) {
+        // Exécution décalée pour éviter les problèmes de pile d'appels
+        setTimeout(() => {
+          safeAudioOperation(nextOperation);
+        }, 50);
+      }
+    }
   }
 };
 
@@ -366,12 +381,12 @@ export const useMusicStore = create<MusicState>((set, get) => {
             const fileExt = filename.split('.').pop();
             const rawTitle = filename.replace(`.${fileExt}`, '');
             
-            // Essayer d'extraire l'artiste et le titre si le format est "Artiste - Titre"
+            // Try to extract the artist and title if the format is "Artist - Title"
             let title = rawTitle;
-            let artist = 'Artiste inconnu';
-            let album = 'Album inconnu';
+            let artist = 'Unknown Artist';
+            let album = 'Unknown Album';
             
-            // Vérifier si le nom du fichier suit le format "Artiste - Titre"
+            // Check if the filename follows the "Artist - Title" format
             const titleParts = rawTitle.split(' - ');
             if (titleParts.length >= 2) {
               artist = titleParts[0].trim();
@@ -396,14 +411,14 @@ export const useMusicStore = create<MusicState>((set, get) => {
               title: title,
               artist: artist,
               album: album,
-              duration: asset.duration * 1000 || 0, // Convertir en millisecondes
+              duration: asset.duration * 1000 || 0, // Convert to milliseconds
             artwork: null,
           });
         }
       }
       
-      // Combiner les pistes de la bibliothèque avec les pistes locales
-      // en évitant les doublons (basés sur l'URI)
+      // Combine library tracks with local tracks
+      // Avoid duplicates based on URI
       const { tracks: localTracks } = get();
       const existingUris = new Set(localTracks.map(track => track.uri));
       
@@ -427,6 +442,13 @@ export const useMusicStore = create<MusicState>((set, get) => {
         if (currentSound) {
           await currentSound.stopAsync();
           await currentSound.unloadAsync();
+        }
+        
+        // Si on essaie de jouer la même piste qui est déjà en cours de lecture, ne rien faire
+        const { currentTrack: prevTrack, isPlaying } = get();
+        if (prevTrack && prevTrack.id === track.id && isPlaying) {
+          console.log('Track already playing:', track.title);
+          return;
         }
         
         // Créer un nouvel objet son
@@ -454,7 +476,7 @@ export const useMusicStore = create<MusicState>((set, get) => {
         });
         
         // Configurer le comportement à la fin de la lecture
-        newSound.setOnPlaybackStatusUpdate((status) => {
+        newSound.setOnPlaybackStatusUpdate((status: any) => {
           if (status.isLoaded && status.didJustFinish) {
             get().playNextTrack();
           }
@@ -509,11 +531,31 @@ export const useMusicStore = create<MusicState>((set, get) => {
   playNextTrack: async () => {
     await safeAudioOperation(async () => {
       try {
-        const { tracks, currentTrack, shuffleMode } = get();
-        if (!currentTrack || tracks.length === 0) return;
+        const { tracks, currentTrack, shuffleMode, repeatMode } = get();
+        if (!currentTrack || tracks.length === 0) {
+          console.log('Aucune piste à jouer.');
+          return;
+        }
+        
+        if (tracks.length === 1) {
+          // S'il n'y a qu'une seule piste et qu'on est en mode répétition
+          if (repeatMode !== 'off') {
+            await get().seekTo(0);
+            await get().resumeTrack();
+            return;
+          } else {
+            console.log('Une seule piste disponible et le mode répétition est désactivé.');
+            return;
+          }
+        }
         
         let currentIndex = tracks.findIndex(t => t.id === currentTrack.id);
-        if (currentIndex === -1) return;
+        if (currentIndex === -1) {
+          console.log('Piste actuelle non trouvée dans la liste.');
+          // Si la piste actuelle n'est pas trouvée, jouer la première piste
+          await get().playTrack(tracks[0]);
+          return;
+        }
         
         let nextIndex;
         if (shuffleMode) {
@@ -526,12 +568,29 @@ export const useMusicStore = create<MusicState>((set, get) => {
         } else {
           // Mode normal - passer à la piste suivante
           nextIndex = (currentIndex + 1) % tracks.length;
+          
+          // Si nous atteignons la fin de la liste et que le mode répétition est désactivé
+          if (nextIndex === 0 && repeatMode === 'off') {
+            // Si le mode répétition est désactivé, arrêter la lecture à la fin de la liste
+            console.log('Fin de la liste de lecture atteinte.');
+            await get().seekTo(0);
+            await get().pauseTrack();
+            return;
+          }
+        }
+        
+        // Si mode repeat one, redémarrer la piste actuelle
+        if (repeatMode === 'one') {
+          await get().seekTo(0);
+          await get().resumeTrack();
+          return;
         }
         
         const nextTrack = tracks[nextIndex];
+        console.log(`Lecture de la piste suivante: ${nextTrack.title}`);
         await get().playTrack(nextTrack);
       } catch (error) {
-        console.error('Error playing next track:', error);
+        console.error('Erreur lors de la lecture de la piste suivante:', error);
       }
     });
   },
@@ -539,53 +598,78 @@ export const useMusicStore = create<MusicState>((set, get) => {
   playPreviousTrack: async () => {
     await safeAudioOperation(async () => {
       try {
-        const { tracks, currentTrack, playbackPosition } = get();
-        if (!currentTrack || tracks.length === 0) return;
+        const { tracks, currentTrack, playbackPosition, shuffleMode } = get();
+        if (!currentTrack || tracks.length === 0) {
+          console.log('Aucune piste à jouer.');
+          return;
+        }
         
         // Si la position de lecture est supérieure à 3 secondes, redémarrer la piste actuelle
         if (playbackPosition > 3000) {
+          console.log('Redémarrage de la piste actuelle.');
+          await get().seekTo(0);
+          return;
+        }
+        
+        if (tracks.length === 1) {
+          // S'il n'y a qu'une seule piste, simplement la redémarrer
           await get().seekTo(0);
           return;
         }
         
         // Sinon, passer à la piste précédente
         let currentIndex = tracks.findIndex(t => t.id === currentTrack.id);
-        if (currentIndex === -1) return;
+        if (currentIndex === -1) {
+          console.log('Piste actuelle non trouvée dans la liste.');
+          // Si la piste actuelle n'est pas trouvée, jouer la première piste
+          await get().playTrack(tracks[0]);
+          return;
+        }
         
-        let prevIndex = (currentIndex - 1 + tracks.length) % tracks.length;
+        let prevIndex;
+        if (shuffleMode) {
+          // En mode shuffle, sélectionner une piste aléatoire (sauf la piste actuelle)
+          let randomIndex;
+          do {
+            randomIndex = Math.floor(Math.random() * tracks.length);
+          } while (randomIndex === currentIndex && tracks.length > 1);
+          prevIndex = randomIndex;
+        } else {
+          // Mode normal - revenir à la piste précédente
+          prevIndex = (currentIndex - 1 + tracks.length) % tracks.length;
+        }
+        
         const prevTrack = tracks[prevIndex];
-        
+        console.log(`Lecture de la piste précédente: ${prevTrack.title}`);
         await get().playTrack(prevTrack);
       } catch (error) {
-        console.error('Error playing previous track:', error);
+        console.error('Erreur lors de la lecture de la piste précédente:', error);
       }
     });
   },
   
   seekTo: async (position: number) => {
-    await safeAudioOperation(async () => {
-      try {
-        const { sound } = get();
-        if (sound) {
-          await sound.setPositionAsync(position);
-          set({ playbackPosition: position });
-        }
-      } catch (error) {
-        console.error('Error seeking:', error);
-      }
-    });
+    const { sound } = get();
+    if (sound) {
+        // Arrondir la position pour éviter des mises à jour trop précises et inutiles
+        const roundedPosition = Math.round(position);
+        await sound.setPositionAsync(roundedPosition);
+        
+        // Mettre à jour l'état après que le son ait été positionné
+        set({ playbackPosition: roundedPosition });
+    }
   },
   
   createPlaylist: (name: string) => {
-    // Vérifier si une playlist avec ce nom existe déjà (recherche insensible à la casse)
+    // Check if a playlist with this name already exists (case insensitive search)
     const playlistExists = get().playlists.some(
       playlist => playlist.name.toLowerCase() === name.toLowerCase()
     );
     
-    // Si une playlist avec ce nom existe déjà, ne pas créer de nouvelle playlist
+    // If a playlist with this name already exists, do not create a new playlist
     if (playlistExists) {
-      // On pourrait ajouter une notification à l'utilisateur ici si on avait un système de notification
-      console.log('Une playlist avec ce nom existe déjà');
+      // We could add a notification to the user here if we had a notification system
+      console.log('A playlist with this name already exists');
       return;
     }
     
@@ -618,12 +702,12 @@ export const useMusicStore = create<MusicState>((set, get) => {
   },
   
   addTrackToPlaylist: (playlistId: string, trackId: string) => {
-    // Vérifier si la piste est déjà dans la playlist
+    // Check if the track is already in the playlist
     const playlist = get().playlists.find(p => p.id === playlistId);
     
     if (playlist && playlist.tracks.includes(trackId)) {
-      // La piste est déjà dans la playlist, ne rien faire
-      console.log('La piste est déjà dans la playlist');
+      // The track is already in the playlist, do nothing
+      console.log('The track is already in the playlist');
       return;
     }
     
@@ -666,7 +750,7 @@ export const useMusicStore = create<MusicState>((set, get) => {
     try {
       set({ isLoading: true });
       
-      // Sélectionner un fichier audio
+      // Select an audio file
       const result = await DocumentPicker.getDocumentAsync({
         type: 'audio/*',
         copyToCacheDirectory: true,
@@ -679,7 +763,7 @@ export const useMusicStore = create<MusicState>((set, get) => {
       
       const file = result.assets[0];
       
-      // Créer un dossier pour stocker les fichiers audio si nécessaire
+      // Create a folder to store audio files if necessary
       const audioDir = `${FileSystem.documentDirectory}audio/`;
       const dirInfo = await FileSystem.getInfoAsync(audioDir);
       
@@ -687,45 +771,45 @@ export const useMusicStore = create<MusicState>((set, get) => {
         await FileSystem.makeDirectoryAsync(audioDir, { intermediates: true });
       }
       
-      // Générer un nom de fichier unique
+      // Generate a unique filename
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
       const destUri = `${audioDir}${fileName}`;
       
-      // Copier le fichier dans notre dossier d'application
+      // Copy the file into our application folder
       await FileSystem.copyAsync({
         from: file.uri,
         to: destUri,
       });
         
-        // Extraire le titre du nom de fichier en supprimant l'extension
+        // Extract the title from the filename by removing the extension
         const rawTitle = file.name.replace(`.${fileExt}`, '');
         
-        // Essayer d'extraire l'artiste et le titre si le format est "Artiste - Titre"
+        // Try to extract the artist and title if the format is "Artist - Title"
         let title = rawTitle;
-        let artist = 'Artiste inconnu';
-        let album = 'Album inconnu';
+        let artist = 'Unknown Artist';
+        let album = 'Unknown Album';
         
-        // Vérifier si le nom du fichier suit le format "Artiste - Titre"
+        // Check if the filename follows the "Artist - Title" format
         const titleParts = rawTitle.split(' - ');
         if (titleParts.length >= 2) {
           artist = titleParts[0].trim();
           title = titleParts.slice(1).join(' - ').trim();
         }
       
-      // Créer une nouvelle piste
+      // Create a new track
       const newTrack: Track = {
         id: `local-${Date.now()}`,
         uri: destUri,
           title: title,
           artist: artist,
           album: album,
-        duration: 0, // Nous mettrons à jour la durée après avoir chargé le son
+        duration: 0, // We'll update the duration after loading the sound
         artwork: null,
         isLocal: true,
       };
       
-      // Obtenir la durée du fichier audio
+      // Get the audio file duration
       try {
         const { sound } = await Audio.Sound.createAsync({ uri: destUri });
         const status = await sound.getStatusAsync();
@@ -737,11 +821,11 @@ export const useMusicStore = create<MusicState>((set, get) => {
         console.error('Error getting audio duration:', error);
       }
       
-      // Ajouter la nouvelle piste à la liste
+      // Add the new track to the list
       set(state => {
         const updatedTracks = [...state.tracks, newTrack];
         
-        // Sauvegarder les pistes dans le stockage local
+        // Save tracks to local storage
         AsyncStorage.setItem(TRACKS_STORAGE_KEY, JSON.stringify(
           updatedTracks.filter(track => track.isLocal)
         )).catch(err => console.error('Error saving tracks:', err));
@@ -760,26 +844,26 @@ export const useMusicStore = create<MusicState>((set, get) => {
     try {
       const { tracks, playlists } = get();
       
-      // Ne sauvegarder que les pistes locales
+      // Save only local tracks
       const localTracks = tracks.filter(track => track.isLocal);
       
-      // Utilisons un taux limiteur (debounce) pour éviter des sauvegardes trop fréquentes
-      // Stocker temporairement les données à sauvegarder
+      // Use a rate limiter (debounce) to avoid too frequent saves
+      // Temporarily store data to save
       if (get().saveDebounceTimeout) {
         clearTimeout(get().saveDebounceTimeout);
       }
       
       const timeout = setTimeout(async () => {
-        // Sauvegarder les pistes locales
+        // Save local tracks
         await AsyncStorage.setItem(TRACKS_STORAGE_KEY, JSON.stringify(localTracks));
         
-        // Sauvegarder également les playlists
+        // Also save playlists
         await AsyncStorage.setItem(PLAYLISTS_STORAGE_KEY, JSON.stringify(playlists));
         
         console.log('Data saved to storage successfully');
-      }, 300); // Délai de 300ms pour regrouper les modifications multiples
+      }, 300); // 300ms delay to group multiple modifications
       
-      // Stocker le timeout pour pouvoir l'annuler si nécessaire
+      // Store timeout for possible cancellation
       set({ saveDebounceTimeout: timeout });
     } catch (error) {
       console.error('Error saving data to storage:', error);
@@ -788,16 +872,16 @@ export const useMusicStore = create<MusicState>((set, get) => {
   
   loadTracksFromStorage: async () => {
     try {
-      // Charger les pistes
+      // Load tracks
       const tracksJson = await AsyncStorage.getItem(TRACKS_STORAGE_KEY);
       const localTracks: Track[] = tracksJson ? JSON.parse(tracksJson) : [];
       
-      // Charger les playlists
+      // Load playlists
       const playlistsJson = await AsyncStorage.getItem(PLAYLISTS_STORAGE_KEY);
       const localPlaylists: Playlist[] = playlistsJson ? JSON.parse(playlistsJson) : [];
       
       set(state => {
-        // Filtrer les pistes existantes pour ne garder que celles qui ne sont pas locales
+        // Filter existing tracks to keep only those that are not local
         const nonLocalTracks = state.tracks.filter(track => !track.isLocal);
         
         return {
@@ -814,7 +898,7 @@ export const useMusicStore = create<MusicState>((set, get) => {
   
   deleteTrack: async (trackId: string) => {
     try {
-      // Marquer comme chargement pour éviter les interactions pendant la suppression
+      // Mark as loading to avoid interactions during deletion
       set({ isLoading: true });
       
       const { tracks, currentTrack, sound } = get();
@@ -825,16 +909,16 @@ export const useMusicStore = create<MusicState>((set, get) => {
         return;
       }
       
-      // Si c'est la piste en cours de lecture, arrêter la lecture
+      // If this is the currently playing track, stop playback
       if (currentTrack?.id === trackId) {
         try {
-          // Arrêter la lecture avant de décharger le son
+          // Stop playback before unloading sound
           if (sound) {
             await sound.stopAsync().catch(() => {});
             await sound.unloadAsync().catch(() => {});
           }
           
-          // Mettre à jour l'état pour indiquer qu'aucune piste n'est en cours de lecture
+          // Update state to indicate no track is playing
           set({ 
             currentTrack: null, 
             sound: null,
@@ -843,29 +927,29 @@ export const useMusicStore = create<MusicState>((set, get) => {
             playbackDuration: 0
           });
         } catch (error) {
-          console.error('Erreur lors de l\'arrêt de la lecture:', error);
+          console.error('Error stopping playback:', error);
         }
       }
       
-      // Si c'est une piste locale, supprimer le fichier
+      // If this is a local track, delete the file
       if (trackToDelete.isLocal && trackToDelete.uri) {
         try {
           await deleteLocalFileIfNeeded(trackToDelete.uri, true);
         } catch (error) {
-          console.error('Erreur lors de la suppression du fichier local:', error);
+          console.error('Error deleting local file:', error);
         }
       }
       
-      // Mettre à jour la liste des pistes et des playlists
+      // Update track and playlist lists
       const updatedTracks = tracks.filter(t => t.id !== trackId);
       
-      // Mettre à jour les playlists pour supprimer cette piste
+      // Update playlists to remove this track
       const updatedPlaylists = get().playlists.map(playlist => ({
         ...playlist,
         tracks: playlist.tracks.filter(id => id !== trackId)
       }));
       
-      // Sauvegarder les changements dans le stockage local
+      // Save changes to storage
       try {
         await AsyncStorage.setItem(
           TRACKS_STORAGE_KEY, 
@@ -877,47 +961,47 @@ export const useMusicStore = create<MusicState>((set, get) => {
           JSON.stringify(updatedPlaylists)
         );
       } catch (error) {
-        console.error('Erreur lors de la sauvegarde des données:', error);
+        console.error('Error saving data to storage:', error);
       }
       
-      // Mettre à jour l'état avec les nouvelles listes
+      // Update state with new lists
       set({ 
         tracks: updatedTracks, 
         playlists: updatedPlaylists,
         isLoading: false
       });
       
-      console.log('Piste supprimée avec succès:', trackId);
+      console.log('Track deleted successfully:', trackId);
     } catch (error) {
-      console.error('Erreur globale lors de la suppression de la piste:', error);
+      console.error('General error deleting track:', error);
       set({ isLoading: false });
     }
   },
   
-  importOnlineTrack: async (url: string, title: string, artist = 'Artiste inconnu', album = 'Album inconnu') => {
+  importOnlineTrack: async (url: string, title: string, artist = 'Unknown Artist', album = 'Unknown Album') => {
     try {
       set({ isLoading: true });
       
-      // Vérifier si l'URL est valide
+      // Check if the URL is valid
       if (!url.startsWith('http')) {
-        console.error('URL invalide');
+        console.error('Invalid URL');
         set({ isLoading: false });
         return;
       }
       
-      // Créer une nouvelle piste
+      // Create a new track
       const newTrack: Track = {
         id: `online-${Date.now()}`,
         uri: url,
         title: title,
         artist: artist,
         album: album,
-        duration: 0, // Sera mis à jour après chargement
+        duration: 0, // Will be updated after loading
         artwork: null,
         isLocal: false,
       };
       
-      // Tester si l'audio peut être chargé
+      // Test if the audio can be loaded
       try {
         const { sound } = await Audio.Sound.createAsync({ uri: url });
         const status = await sound.getStatusAsync();
@@ -926,20 +1010,20 @@ export const useMusicStore = create<MusicState>((set, get) => {
         }
         await sound.unloadAsync();
       } catch (error) {
-        console.error('Erreur lors du test de l\'audio:', error);
+        console.error('Error testing audio:', error);
         set({ isLoading: false });
         return;
       }
       
-      // Ajouter la piste à la liste
+      // Add the track to the list
       set(state => {
         const updatedTracks = [...state.tracks, newTrack];
         return { tracks: updatedTracks, isLoading: false };
       });
       
-      console.log('Piste en ligne importée avec succès');
+      console.log('Online track imported successfully');
     } catch (error) {
-      console.error('Erreur lors de l\'importation de la piste en ligne:', error);
+      console.error('Error importing online track:', error);
       set({ isLoading: false });
     }
     },
@@ -958,18 +1042,18 @@ export const useMusicStore = create<MusicState>((set, get) => {
     // Favorites
     toggleFavorite: (trackId: string) => {
       set(state => {
-        // Vérifier si l'état actuel est déjà celui que nous voulons
+        // Check if the current state is already the one we want
         const track = state.tracks.find(t => t.id === trackId);
-        if (!track) return state; // Ne rien faire si la piste n'existe pas
+        if (!track) return state; // Do nothing if the track doesn't exist
         
-        // Éviter les mises à jour inutiles si l'état ne change pas
+        // Avoid unnecessary updates if the state doesn't change
         const newFavoriteState = !track.isFavorite;
         
         const updatedTracks = state.tracks.map(track =>
           track.id === trackId ? { ...track, isFavorite: newFavoriteState } : track
         );
         
-        // Mettre à jour également la piste courante si c'est celle qui est modifiée
+        // Also update the current track if it's the one being modified
         let updatedCurrentTrack = state.currentTrack;
         if (state.currentTrack && state.currentTrack.id === trackId) {
           updatedCurrentTrack = {
@@ -979,7 +1063,7 @@ export const useMusicStore = create<MusicState>((set, get) => {
         }
         
         // Save local tracks with updated favorite status to storage
-        // Utiliser requestAnimationFrame pour éviter de bloquer le thread principal
+        // Use requestAnimationFrame to avoid blocking the main thread
         requestAnimationFrame(() => {
           AsyncStorage.setItem(TRACKS_STORAGE_KEY, JSON.stringify(
             updatedTracks.filter(track => track.isLocal)
@@ -997,21 +1081,21 @@ export const useMusicStore = create<MusicState>((set, get) => {
       return get().tracks.filter(track => track.isFavorite);
     },
     
-    // Ajouter une nouvelle fonction pour vérifier si une piste doit être ouverte depuis une notification
+    // Add a new function to check if a track should be opened from a notification
     checkNotificationNavigation: async () => {
       try {
         const trackId = await AsyncStorage.getItem('notification_track_to_open');
         if (trackId) {
-          // Effacer l'ID stocké pour éviter de rouvrir la même piste plusieurs fois
+          // Clear the stored ID to avoid reopening the same track multiple times
           await AsyncStorage.removeItem('notification_track_to_open');
           
-          // Trouver la piste correspondante
+          // Find the corresponding track
           const track = get().tracks.find(t => t.id === trackId);
           if (track) {
-            // Jouer la piste
+            // Play the track
             await get().playTrack(track);
             
-            // Retourner l'ID de la piste pour que l'appelant puisse naviguer vers la page de détails
+            // Return the track ID so the caller can navigate to the details page
             return trackId;
           }
         }

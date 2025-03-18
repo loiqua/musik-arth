@@ -26,17 +26,18 @@ const { width } = Dimensions.get('window');
 
 // Fonction utilitaire pour créer un contrôle avec protection contre les clics multiples
 const createDebouncedControl = (callback: () => void, delay: number = 500) => {
-  let isClickable = true;
+  let lastClickTime = 0;
   
   return () => {
-    if (!isClickable) return;
+    const now = Date.now();
+    // Si le temps écoulé depuis le dernier clic est inférieur au délai, ignorez ce clic
+    if (now - lastClickTime < delay) {
+      console.log('Clic ignoré (trop rapide)');
+      return;
+    }
     
-    isClickable = false;
+    lastClickTime = now;
     callback();
-    
-    setTimeout(() => {
-      isClickable = true;
-    }, delay);
   };
 };
 
