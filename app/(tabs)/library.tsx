@@ -80,8 +80,7 @@ export default function LibraryScreen() {
         });
       }
       
-      // On n'ajoute PAS la piste directement ici
-      // Pour éviter la duplication, on compte juste le nombre de pistes
+      // Add track to artist's tracks collection
       const artistData = artistMap.get(artistName)!;
       if (!artistData.tracks.some(t => t.id === track.id)) {
         artistData.tracks.push(track);
@@ -92,7 +91,7 @@ export default function LibraryScreen() {
     return Array.from(artistMap.entries())
       .map(([title, { tracks, artwork }]) => ({ 
         title, 
-        data: [], // On n'affiche pas les pistes ici
+        data: tracks, // Include the tracks data to make FlatList work properly
         trackCount: tracks.length,
         artwork 
       }))
@@ -113,7 +112,11 @@ export default function LibraryScreen() {
         });
       }
       
-      albumMap.get(albumName)!.tracks.push(track);
+      // Add track to album's tracks collection if not already present
+      const albumData = albumMap.get(albumName)!;
+      if (!albumData.tracks.some(t => t.id === track.id)) {
+        albumData.tracks.push(track);
+      }
     });
     
     // Convert map to array and sort by album name
@@ -210,7 +213,7 @@ export default function LibraryScreen() {
           styles.artistItem, 
           { backgroundColor: isDark ? COLORS.cardDark : COLORS.card }
         ]}
-        onPress={() => router.push(`/artist-details?name=${encodeURIComponent(artistName)}`)}
+        onPress={() => router.push(`/artist-details?artistName=${encodeURIComponent(artistName)}`)}
       >
         <Image 
           source={{ uri: artistArtwork }} 
@@ -239,7 +242,7 @@ export default function LibraryScreen() {
           styles.albumItem, 
           { backgroundColor: isDark ? COLORS.cardDark : COLORS.card }
         ]}
-        onPress={() => router.push(`/album-details?name=${encodeURIComponent(albumName)}`)}
+        onPress={() => router.push(`/album-details?albumName=${encodeURIComponent(albumName)}`)}
       >
         <Image 
           source={{ uri: albumArtwork }} 
@@ -442,14 +445,16 @@ export default function LibraryScreen() {
               contentContainerStyle={styles.listContent}
             />
           ) : activeSection === 'artists' ? (
-            <SectionList
-              sections={artistSections}
-              keyExtractor={(item) => item.id}
+            <FlatList
+              data={artistSections.map(section => ({ 
+                title: section.title, 
+                trackCount: section.trackCount, 
+                artwork: section.artwork 
+              }))}
+              keyExtractor={(item) => item.title}
               renderItem={renderArtistItem}
-              renderSectionHeader={renderSectionHeader}
               ListEmptyComponent={renderEmptyLibrary}
               contentContainerStyle={styles.listContent}
-              stickySectionHeadersEnabled
             />
           ) : (
             <SectionList

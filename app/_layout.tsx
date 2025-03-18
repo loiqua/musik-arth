@@ -4,9 +4,9 @@ import { COLORS } from '../constants/Theme';
 import { useColorScheme } from '../hooks/useColorScheme';
 import * as Notifications from 'expo-notifications';
 import { Audio } from 'expo-av';
-import { useMusicStore } from '../store/musicStore';
 import { Platform } from 'react-native';
-import LockScreenControls from '../components/LockScreenControls';
+import { useMusicStore } from '../store/musicStore';
+import NotificationHandler from '../components/NotificationHandler';
 
 // Configuration des notifications pour l'écran verrouillé
 Notifications.setNotificationHandler({
@@ -23,20 +23,19 @@ export default function RootLayout() {
   const isDark = colorScheme === 'dark';
   
   const backgroundColor = isDark ? COLORS.backgroundDark : COLORS.background;
-  const headerColor = isDark ? COLORS.textDark : COLORS.text;
   
   // Initialiser les notifications et les contrôles audio
   useEffect(() => {
     const setupApp = async () => {
       try {
-        // Configurer l'audio pour rester actif en arrière-plan
+        // Configurer l'audio pour NE PAS rester actif en arrière-plan
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
-          staysActiveInBackground: true,
-          interruptionModeIOS: 1, // Audio.INTERRUPTION_MODE_IOS_DUCK_OTHERS (1)
+          staysActiveInBackground: false, // Désactivé
+          interruptionModeIOS: 1,
           playsInSilentModeIOS: true,
           shouldDuckAndroid: true,
-          interruptionModeAndroid: 1, // Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS (1)
+          interruptionModeAndroid: 1,
           playThroughEarpieceAndroid: false,
         });
         
@@ -48,14 +47,11 @@ export default function RootLayout() {
         
         // Configurer le canal de notification pour Android
         if (Platform.OS === 'android') {
-          await Notifications.setNotificationChannelAsync('playback', {
-            name: 'Contrôles de lecture',
+          await Notifications.setNotificationChannelAsync('default', {
+            name: 'Notifications par défaut',
             importance: Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 0, 0, 0], // Pas de vibration
+            vibrationPattern: [0, 250, 250, 250],
             lightColor: '#FF2D55',
-            lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-            bypassDnd: true,
-            sound: null,
           });
         }
         
@@ -70,8 +66,8 @@ export default function RootLayout() {
   
   return (
     <>
-      {/* Composant pour gérer les contrôles de l'écran verrouillé */}
-      <LockScreenControls />
+      {/* Gestionnaire de notifications standard - pas de contrôles de lecture */}
+      <NotificationHandler />
       
       <Stack
         screenOptions={{

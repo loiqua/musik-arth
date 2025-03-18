@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState, useCallback, memo } from 'react';
+import React, { useEffect, useState, useCallback, memo, useRef } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -10,6 +10,8 @@ import {
   TouchableOpacity,
   View,
   Animated,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { COLORS, FONTS, LAYOUT, SPACING } from '../constants/Theme';
 import { useMusicStore } from '../store/musicStore';
@@ -18,10 +20,31 @@ import { useColorScheme } from '../hooks/useColorScheme';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import SimpleSlider from './SimpleSlider';
+import { Audio } from 'expo-av';
 
 const { width } = Dimensions.get('window');
 
-function MusicPlayer() {
+// Fonction utilitaire pour créer un contrôle avec protection contre les clics multiples
+const createDebouncedControl = (callback: () => void, delay: number = 500) => {
+  let isClickable = true;
+  
+  return () => {
+    if (!isClickable) return;
+    
+    isClickable = false;
+    callback();
+    
+    setTimeout(() => {
+      isClickable = true;
+    }, delay);
+  };
+};
+
+/**
+ * Invisible component for managing music playback
+ * Handles background playback and cleanup
+ */
+const MusicPlayer: React.FC = () => {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -39,10 +62,15 @@ function MusicPlayer() {
     playPreviousTrack,
     seekTo,
     toggleFavorite,
+    sound,
+    cleanup,
   } = useMusicStore();
   
   const [sliderValue, setSliderValue] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
+  
+  const appState = useRef(AppState.currentState);
+  const soundRef = useRef<Audio.Sound | null>(null);
   
   useEffect(() => {
     if (!isSeeking && playbackDuration > 0) {
@@ -50,24 +78,58 @@ function MusicPlayer() {
     }
   }, [playbackPosition, playbackDuration, isSeeking]);
   
-  const handlePlayPause = useCallback(() => {
-    if (isPlaying) {
-      pauseTrack();
-    } else {
-      resumeTrack();
-    }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }, [isPlaying, pauseTrack, resumeTrack]);
+  useEffect(() => {
+    soundRef.current = sound;
+  }, [sound]);
   
-  const handlePrevious = useCallback(() => {
-    playPreviousTrack();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [playPreviousTrack]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (appState.current === 'active' && (nextAppState === 'background' || nextAppState === 'inactive')) {
+        console.log('App going to background, ensuring playback continues properly');
+      } 
+      else if (appState.current === 'background' && nextAppState === 'active') {
+        console.log('App returning from background');
+      }
+      
+      appState.current = nextAppState;
+    });
+    
+    return () => {
+      subscription.remove();
+      if (soundRef.current) {
+        cleanup();
+      }
+    };
+  }, [cleanup]);
   
-  const handleNext = useCallback(() => {
-    playNextTrack();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [playNextTrack]);
+  // Utiliser useCallback avec debounce pour les contrôles
+  const handlePlayPause = useCallback(
+    createDebouncedControl(() => {
+      if (isPlaying) {
+        pauseTrack();
+      } else {
+        resumeTrack();
+      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }, 300),
+    [isPlaying, pauseTrack, resumeTrack]
+  );
+  
+  const handlePrevious = useCallback(
+    createDebouncedControl(() => {
+      playPreviousTrack();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }, 500),
+    [playPreviousTrack]
+  );
+  
+  const handleNext = useCallback(
+    createDebouncedControl(() => {
+      playNextTrack();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }, 500),
+    [playNextTrack]
+  );
   
   const handleSeekStart = useCallback(() => {
     setIsSeeking(true);
@@ -77,18 +139,20 @@ function MusicPlayer() {
     if (playbackDuration > 0) {
       seekTo(value * playbackDuration);
     }
-    // Utiliser requestAnimationFrame pour améliorer les performances
     requestAnimationFrame(() => {
       setIsSeeking(false);
     });
   }, [playbackDuration, seekTo]);
   
-  const handleToggleFavorite = useCallback(() => {
-    if (currentTrack) {
-      toggleFavorite(currentTrack.id);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-  }, [currentTrack, toggleFavorite]);
+  const handleToggleFavorite = useCallback(
+    createDebouncedControl(() => {
+      if (currentTrack) {
+        toggleFavorite(currentTrack.id);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    }, 300),
+    [currentTrack, toggleFavorite]
+  );
   
   const navigateToDetails = useCallback(() => {
     if (currentTrack) {
@@ -230,7 +294,7 @@ function MusicPlayer() {
       </View>
     </BlurView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {

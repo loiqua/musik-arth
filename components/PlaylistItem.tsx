@@ -8,12 +8,13 @@ import {
   View, 
   Modal, 
   Alert,
-  TextInput
+  TextInput,
+  Image
 } from 'react-native';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { COLORS, FONTS, LAYOUT, SPACING } from '../constants/Theme';
-import { Playlist, useMusicStore } from '../store/musicStore';
-import { getColorFromString } from '../utils/audioUtils';
+import { Playlist, useMusicStore, Track } from '../store/musicStore';
+import { getColorFromString, getPlaceholderArtwork } from '../utils/audioUtils';
 import * as Haptics from 'expo-haptics';
 
 interface PlaylistItemProps {
@@ -35,6 +36,8 @@ const PlaylistItem: React.FC<PlaylistItemProps> = ({
   
   const renamePlaylist = useMusicStore(state => state.renamePlaylist);
   const deletePlaylist = useMusicStore(state => state.deletePlaylist);
+  const tracks = useMusicStore(state => state.tracks);
+  const playTrack = useMusicStore(state => state.playTrack);
   
   const textColor = isDark ? COLORS.textDark : COLORS.text;
   const secondaryTextColor = isDark ? COLORS.textSecondaryDark : COLORS.textSecondary;
@@ -49,6 +52,21 @@ const PlaylistItem: React.FC<PlaylistItemProps> = ({
     if (trackCount !== undefined) return trackCount;
     return new Set(playlist.tracks).size;
   }, [playlist.tracks, trackCount]);
+  
+  // Get the tracks in this playlist
+  const playlistTracks = React.useMemo(() => {
+    return playlist.tracks
+      .map(id => tracks.find(track => track.id === id))
+      .filter(track => track !== undefined) as Track[];
+  }, [playlist, tracks]);
+  
+  // Get artwork for the playlist
+  const playlistArtwork = React.useMemo(() => {
+    if (playlistTracks.length > 0 && playlistTracks[0].artwork) {
+      return playlistTracks[0].artwork;
+    }
+    return getPlaceholderArtwork(playlist.name, 'Playlist');
+  }, [playlist, playlistTracks]);
   
   const handlePress = () => {
     router.push(`/playlist-details?playlistId=${playlist.id}`);
@@ -95,48 +113,48 @@ const PlaylistItem: React.FC<PlaylistItemProps> = ({
     }
   };
   
+  const handlePlaylist = () => {
+    if (playlistTracks.length > 0) {
+      playTrack(playlistTracks[0]);
+    }
+  };
+  
   return (
     <>
       <TouchableOpacity
-        style={styles.container}
+        style={[
+          styles.container,
+          { backgroundColor: isDark ? COLORS.cardDark : COLORS.card }
+        ]}
         onPress={handlePress}
         activeOpacity={0.7}
       >
-        <View style={styles.artworkContainer}>
-          <View
-            style={[styles.artwork, { backgroundColor: color }]}
-          >
-            <Ionicons name="musical-notes" size={32} color="#FFFFFF" />
-          </View>
-        </View>
+        <Image
+          source={{ uri: playlistArtwork }}
+          style={styles.artwork}
+        />
         
-        <View style={styles.infoContainer}>
-          <Text 
-            style={[styles.name, { color: textColor }]}
-            numberOfLines={1}
-          >
+        <View style={styles.info}>
+          <Text style={[styles.title, { color: textColor }]} numberOfLines={1}>
             {playlist.name}
           </Text>
-          
-          <Text 
-            style={[styles.trackCount, { color: secondaryTextColor }]}
-            numberOfLines={1}
-          >
-            {uniqueTrackCount} {uniqueTrackCount === 1 ? 'song' : 'songs'}
+          <Text style={[styles.trackCount, { color: secondaryTextColor }]}>
+            {playlistTracks.length} {playlistTracks.length === 1 ? 'song' : 'songs'}
           </Text>
         </View>
         
-        <TouchableOpacity
-          style={styles.optionsButton}
-          onPress={handleOptionsPress}
-          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-        >
-          <Ionicons 
-            name="ellipsis-horizontal" 
-            size={20} 
-            color={secondaryTextColor} 
-          />
-        </TouchableOpacity>
+        <View style={styles.actions}>
+          {playlistTracks.length > 0 && (
+            <TouchableOpacity
+              style={styles.playButton}
+              onPress={handlePlaylist}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="play" size={22} color={COLORS.primary} />
+            </TouchableOpacity>
+          )}
+          <Ionicons name="chevron-forward" size={22} color={secondaryTextColor} />
+        </View>
       </TouchableOpacity>
       
       {/* Menu d'options */}
@@ -247,37 +265,42 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: SPACING.medium,
-    paddingHorizontal: SPACING.medium,
-  },
-  artworkContainer: {
-    width: LAYOUT.albumArt.small,
-    height: LAYOUT.albumArt.small,
-    borderRadius: LAYOUT.borderRadius.small,
-    overflow: 'hidden',
+    marginHorizontal: SPACING.medium,
+    marginBottom: SPACING.small,
+    padding: SPACING.medium,
+    borderRadius: 12,
   },
   artwork: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    marginRight: SPACING.medium,
   },
-  infoContainer: {
+  info: {
     flex: 1,
-    marginLeft: SPACING.medium,
     justifyContent: 'center',
   },
-  name: {
-    fontFamily: FONTS.medium,
+  title: {
+    fontFamily: FONTS.bold,
     fontSize: FONTS.sizes.medium,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   trackCount: {
     fontFamily: FONTS.regular,
     fontSize: FONTS.sizes.small,
   },
-  optionsButton: {
-    padding: SPACING.xs,
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  playButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 45, 85, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.small,
   },
   
   // Styles pour le menu d'options

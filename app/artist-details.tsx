@@ -20,20 +20,37 @@ import { getArtistPlaceholderArtwork } from '../utils/audioUtils';
 import * as Haptics from 'expo-haptics';
 
 export default function ArtistDetailsScreen() {
-  const { artistName } = useLocalSearchParams<{ artistName: string }>();
+  const { artistName: encodedArtistName } = useLocalSearchParams<{ artistName: string }>();
+  const artistName = useMemo(() => {
+    return encodedArtistName ? decodeURIComponent(encodedArtistName as string) : '';
+  }, [encodedArtistName]);
+  
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   
   const { tracks, currentTrack, playTrack, isLoading } = useMusicStore();
   
+  // Afficher des informations de débogage pour aider à comprendre le problème
+  console.log('artistName (décodé):', artistName);
+  console.log('Nombre total de pistes:', tracks.length);
+  console.log('Artistes disponibles:', [...new Set(tracks.map(t => t.artist))]);
+  
   const backgroundColor = isDark ? COLORS.backgroundDark : COLORS.background;
   const textColor = isDark ? COLORS.textDark : COLORS.text;
   const secondaryTextColor = isDark ? COLORS.textSecondaryDark : COLORS.textSecondary;
   
-  // Filtrer les pistes par artiste
+  // Filtrer les pistes par artiste (avec un débogage pour voir pourquoi ça ne filtre pas correctement)
   const artistTracks = useMemo(() => {
-    return tracks.filter(track => track.artist === artistName);
+    const filteredTracks = tracks.filter(track => {
+      const match = track.artist === artistName;
+      if (artistName && track.artist && !match) {
+        console.log(`Non-match: "${track.artist}" !== "${artistName}"`);
+      }
+      return match;
+    });
+    console.log(`Tracks filtrées pour "${artistName}":`, filteredTracks.length);
+    return filteredTracks;
   }, [tracks, artistName]);
   
   // Fonction pour revenir en arrière

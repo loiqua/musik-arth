@@ -19,12 +19,19 @@ import { Track, useMusicStore } from '../store/musicStore';
 import { getAlbumPlaceholderArtwork } from '../utils/audioUtils';
 
 export default function AlbumDetailsScreen() {
-  const { albumName } = useLocalSearchParams<{ albumName: string }>();
+  const { albumName: encodedAlbumName } = useLocalSearchParams<{ albumName: string }>();
+  const albumName = useMemo(() => {
+    return encodedAlbumName ? decodeURIComponent(encodedAlbumName as string) : '';
+  }, [encodedAlbumName]);
+  
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   
   const { tracks, currentTrack, playTrack, isLoading } = useMusicStore();
+  
+  // Débogage
+  console.log('albumName (décodé):', albumName);
   
   const backgroundColor = isDark ? COLORS.backgroundDark : COLORS.background;
   const textColor = isDark ? COLORS.textDark : COLORS.text;
@@ -32,7 +39,9 @@ export default function AlbumDetailsScreen() {
   
   // Filtrer les pistes par album
   const albumTracks = useMemo(() => {
-    return tracks.filter(track => track.album === albumName);
+    const filteredTracks = tracks.filter(track => track.album === albumName);
+    console.log(`Tracks filtrées pour l'album "${albumName}":`, filteredTracks.length);
+    return filteredTracks;
   }, [tracks, albumName]);
   
   // Obtenir l'artiste de l'album (utiliser le premier morceau)

@@ -47,16 +47,30 @@ const setupAudioMode = async () => {
   await Audio.setAudioModeAsync({
     allowsRecordingIOS: false,
     staysActiveInBackground: true,
-    interruptionModeIOS: 1, // DUCK_OTHERS
+    interruptionModeIOS: 1, // INTERRUPTION_MODE_IOS_DUCK_OTHERS
     playsInSilentModeIOS: true,
     shouldDuckAndroid: true,
-    interruptionModeAndroid: 1, // DUCK_OTHERS
+    interruptionModeAndroid: 1, // INTERRUPTION_MODE_ANDROID_DUCK_OTHERS
     playThroughEarpieceAndroid: false,
   });
 };
 
 // Call this function when the app starts
 setupAudioMode();
+
+// Function to stop all playback and clean up resources
+const stopAllPlayback = async (sound: Audio.Sound | null) => {
+  if (sound) {
+    try {
+      await sound.pauseAsync();
+      await sound.unloadAsync();
+    } catch (error) {
+      console.error('Error stopping playback:', error);
+    }
+  }
+  // Dismiss any notifications
+  await Notifications.dismissAllNotificationsAsync();
+};
 
 // Function to show playback notification
 const showPlaybackNotification = async (track: Track, isPlaying: boolean) => {
@@ -216,11 +230,34 @@ interface MusicState {
   
   // Ajouter une nouvelle fonction pour vérifier si une piste doit être ouverte depuis une notification
   checkNotificationNavigation: () => Promise<string | null>;
+  
+  // Cleanup function for app termination
+  cleanup: () => Promise<void>;
 }
 
 // Constantes pour le stockage local
 const TRACKS_STORAGE_KEY = 'music_player_tracks';
 const PLAYLISTS_STORAGE_KEY = 'music_player_playlists';
+
+// Ajouter un verrou pour éviter les opérations simultanées sur le même son
+let isAudioOperationInProgress = false;
+
+// Fonction utilitaire pour exécuter une opération audio en toute sécurité
+const safeAudioOperation = async (operation: () => Promise<any>) => {
+  if (isAudioOperationInProgress) {
+    console.log('Une opération audio est déjà en cours, ignorée');
+    return;
+  }
+  
+  isAudioOperationInProgress = true;
+  try {
+    await operation();
+  } catch (error) {
+    console.error('Erreur lors de l\'opération audio:', error);
+  } finally {
+    isAudioOperationInProgress = false;
+  }
+};
 
 export const useMusicStore = create<MusicState>((set, get) => {
   // Configurer le gestionnaire de notifications pour répondre aux actions
@@ -383,246 +420,160 @@ export const useMusicStore = create<MusicState>((set, get) => {
   },
   
   playTrack: async (track: Track) => {
-    try {
-      // Unload previous sound if exists
-        const { sound: prevSound, currentTrack: prevTrack } = get();
-        
-        // Si on essaie de jouer la même piste qui est déjà en cours de lecture, ne rien faire
-        if (prevTrack && prevTrack.id === track.id && get().isPlaying) {
-          console.log('Track already playing:', track.title);
-          return;
+    await safeAudioOperation(async () => {
+      try {
+        // Arrêter la lecture en cours s'il y a une piste en lecture
+        const { sound: currentSound } = get();
+        if (currentSound) {
+          await currentSound.stopAsync();
+          await currentSound.unloadAsync();
         }
         
-        // Arrêter et décharger le son précédent
-      if (prevSound) {
-          try {
-            // Arrêter d'abord le son
-            await prevSound.stopAsync();
-            // Puis le décharger
-        await prevSound.unloadAsync();
-            console.log('Previous sound unloaded successfully');
-          } catch (error) {
-            console.error('Error unloading previous sound:', error);
+        // Créer un nouvel objet son
+        const { sound: newSound } = await Audio.Sound.createAsync(
+          { uri: track.uri || '' },
+          { shouldPlay: true },
+          (status) => {
+            if (status.isLoaded) {
+              set({
+                playbackPosition: status.positionMillis,
+                playbackDuration: status.durationMillis || 0,
+                isPlaying: status.isPlaying,
+              });
+            }
           }
-        }
+        );
         
-        // Mettre à jour l'état pour indiquer qu'aucun son n'est en cours de lecture
+        // Enregistrer le son et la piste en cours
         set({
-          sound: null,
-          isPlaying: false,
-          playbackPosition: 0,
-        });
-      
-      // Check if this is a mock track (for Expo Go testing)
-      if (track.id.startsWith('mock-')) {
-        // For mock tracks, we don't actually play anything
-        // but we update the UI state to simulate playback
-        console.log('Playing mock track:', track.title);
-        
-        // Set up a timer to simulate playback progress
-        const mockSound = {
-          unloadAsync: async () => {},
-          playAsync: async () => {},
-          pauseAsync: async () => {},
-            stopAsync: async () => {},
-          setPositionAsync: async () => {},
-        };
-        
-        // Update state with mock track
-        set({
+          sound: newSound,
           currentTrack: track,
-          sound: mockSound as any,
           isPlaying: true,
           playbackPosition: 0,
           playbackDuration: track.duration,
         });
-          
-          // Show notification for mock track
-          showPlaybackNotification(track, true);
         
-        // Simulate playback progress
-        let position = 0;
-        const interval = setInterval(() => {
-          if (get().isPlaying && get().currentTrack?.id === track.id) {
-            position += 1000; // Increment by 1 second
-            if (position <= track.duration) {
-              set({ playbackPosition: position });
-            } else {
-              // "Song" finished playing
-              clearInterval(interval);
-              get().playNextTrack();
-            }
-          } else {
-            clearInterval(interval);
+        // Configurer le comportement à la fin de la lecture
+        newSound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            get().playNextTrack();
           }
-        }, 1000);
-        
-        return;
-      }
-      
-      // Create and load new sound for real tracks
-      if (!track.uri) {
-        console.error('Cannot play track: URI is null');
-        return;
-      }
-        
-        console.log('Creating new sound for track:', track.title);
-      
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: track.uri },
-        { shouldPlay: true },
-        (status) => {
-          if (status.isLoaded) {
-            set({
-              playbackPosition: status.positionMillis,
-              playbackDuration: status.durationMillis || 0,
-              isPlaying: status.isPlaying,
-            });
-              
-              // Handle track completion
-              if (status.didJustFinish) {
-                const { repeatMode } = get();
-                if (repeatMode === 'one') {
-                  // Repeat the current track
-                  sound.replayAsync();
-                } else {
-                  // Play next track or stop based on repeat mode
-                  get().playNextTrack();
-                }
-              }
-          }
-        }
-      );
-      
-      // Configure audio mode for background playback
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: true,
-      });
-      
-      set({
-        currentTrack: track,
-        sound,
-        isPlaying: true,
-      });
-        
-        // Show notification for the track
-        showPlaybackNotification(track, true);
-    } catch (error) {
-      console.error('Error playing track:', error);
-        // Réinitialiser l'état en cas d'erreur
-        set({
-          isPlaying: false,
-          sound: null,
         });
-    }
+        
+        // Mettre à jour la notification
+        showPlaybackNotification(track, true);
+      } catch (error) {
+        console.error('Error playing track:', error);
+      }
+    });
   },
   
   pauseTrack: async () => {
-      const { sound, currentTrack } = get();
-    if (sound) {
-      await sound.pauseAsync();
-      set({ isPlaying: false });
-        
-        // Update notification to show paused state
-        if (currentTrack) {
-          showPlaybackNotification(currentTrack, false);
+    await safeAudioOperation(async () => {
+      try {
+        const { sound, currentTrack } = get();
+        if (sound) {
+          await sound.pauseAsync();
+          // Update notification to show paused state
+          if (currentTrack) {
+            showPlaybackNotification(currentTrack, false);
+          }
+          set({ isPlaying: false });
         }
-    }
+      } catch (error) {
+        console.error('Error pausing track:', error);
+      }
+    });
   },
   
   resumeTrack: async () => {
-      const { sound, currentTrack } = get();
-    if (sound) {
-      await sound.playAsync();
-      set({ isPlaying: true });
-        
-        // Update notification to show playing state
-        if (currentTrack) {
-          showPlaybackNotification(currentTrack, true);
+    await safeAudioOperation(async () => {
+      try {
+        const { sound, currentTrack } = get();
+        if (sound) {
+          await sound.playAsync();
+          
+          // Update notification to show playing state
+          if (currentTrack) {
+            showPlaybackNotification(currentTrack, true);
+          }
+          
+          set({ isPlaying: true });
         }
-    }
+      } catch (error) {
+        console.error('Error resuming track:', error);
+      }
+    });
   },
   
   playNextTrack: async () => {
-      const { tracks, currentTrack, shuffleMode, repeatMode } = get();
-      if (!currentTrack || tracks.length === 0) return;
-    
-    const currentIndex = tracks.findIndex(t => t.id === currentTrack.id);
-      
-      // Handle different playback modes
-      if (shuffleMode) {
-        // Play a random track that's not the current one
-        let randomIndex;
-        do {
-          randomIndex = Math.floor(Math.random() * tracks.length);
-        } while (randomIndex === currentIndex && tracks.length > 1);
+    await safeAudioOperation(async () => {
+      try {
+        const { tracks, currentTrack, shuffleMode } = get();
+        if (!currentTrack || tracks.length === 0) return;
         
-        await get().playTrack(tracks[randomIndex]);
-      } else if (repeatMode === 'one') {
-        // Repeat the current track
-        await get().playTrack(currentTrack);
-      } else {
-        // Normal next track logic
-    if (currentIndex < tracks.length - 1) {
-          // Play next track
-          await get().playTrack(tracks[currentIndex + 1]);
-        } else if (repeatMode === 'all') {
-          // Loop back to the first track
-          await get().playTrack(tracks[0]);
+        let currentIndex = tracks.findIndex(t => t.id === currentTrack.id);
+        if (currentIndex === -1) return;
+        
+        let nextIndex;
+        if (shuffleMode) {
+          // Mode aléatoire - choisir une piste au hasard (sauf la piste actuelle)
+          let randomIndex;
+          do {
+            randomIndex = Math.floor(Math.random() * tracks.length);
+          } while (randomIndex === currentIndex && tracks.length > 1);
+          nextIndex = randomIndex;
+        } else {
+          // Mode normal - passer à la piste suivante
+          nextIndex = (currentIndex + 1) % tracks.length;
         }
-        // If repeatMode is 'off' and we're at the last track, do nothing
-    }
+        
+        const nextTrack = tracks[nextIndex];
+        await get().playTrack(nextTrack);
+      } catch (error) {
+        console.error('Error playing next track:', error);
+      }
+    });
   },
   
   playPreviousTrack: async () => {
-      const { tracks, currentTrack, shuffleMode, repeatMode } = get();
-      if (!currentTrack || tracks.length === 0) return;
-    
-    const currentIndex = tracks.findIndex(t => t.id === currentTrack.id);
-      
-      // If we're more than 3 seconds into the song, restart it instead of going to previous
-      if (get().playbackPosition > 3000) {
-        await get().seekTo(0);
-        return;
-      }
-      
-      // Handle different playback modes
-      if (shuffleMode) {
-        // Play a random track that's not the current one
-        let randomIndex;
-        do {
-          randomIndex = Math.floor(Math.random() * tracks.length);
-        } while (randomIndex === currentIndex && tracks.length > 1);
+    await safeAudioOperation(async () => {
+      try {
+        const { tracks, currentTrack, playbackPosition } = get();
+        if (!currentTrack || tracks.length === 0) return;
         
-        await get().playTrack(tracks[randomIndex]);
-      } else if (repeatMode === 'one') {
-        // Restart the current track
-        await get().seekTo(0);
-      } else {
-        // Normal previous track logic
-    if (currentIndex > 0) {
-          // Play previous track
-          await get().playTrack(tracks[currentIndex - 1]);
-        } else if (repeatMode === 'all') {
-          // Loop back to the last track
-          await get().playTrack(tracks[tracks.length - 1]);
+        // Si la position de lecture est supérieure à 3 secondes, redémarrer la piste actuelle
+        if (playbackPosition > 3000) {
+          await get().seekTo(0);
+          return;
         }
-        // If repeatMode is 'off' and we're at the first track, do nothing
-    }
+        
+        // Sinon, passer à la piste précédente
+        let currentIndex = tracks.findIndex(t => t.id === currentTrack.id);
+        if (currentIndex === -1) return;
+        
+        let prevIndex = (currentIndex - 1 + tracks.length) % tracks.length;
+        const prevTrack = tracks[prevIndex];
+        
+        await get().playTrack(prevTrack);
+      } catch (error) {
+        console.error('Error playing previous track:', error);
+      }
+    });
   },
   
   seekTo: async (position: number) => {
-    const { sound } = get();
-    if (sound) {
-        // Arrondir la position pour éviter des mises à jour trop précises et inutiles
-        const roundedPosition = Math.round(position);
-        await sound.setPositionAsync(roundedPosition);
-        
-        // Mettre à jour l'état après que le son ait été positionné
-        set({ playbackPosition: roundedPosition });
-    }
+    await safeAudioOperation(async () => {
+      try {
+        const { sound } = get();
+        if (sound) {
+          await sound.setPositionAsync(position);
+          set({ playbackPosition: position });
+        }
+      } catch (error) {
+        console.error('Error seeking:', error);
+      }
+    });
   },
   
   createPlaylist: (name: string) => {
@@ -1069,6 +1020,35 @@ export const useMusicStore = create<MusicState>((set, get) => {
         console.error('Error checking notification navigation:', error);
         return null;
       }
+    },
+
+    // Cleanup function for app termination
+    cleanup: async () => {
+      await safeAudioOperation(async () => {
+        try {
+          const { sound } = get();
+          if (sound) {
+            console.log('Cleaning up audio resources...');
+            
+            // Arrêter d'abord la lecture
+            await sound.stopAsync().catch(e => console.warn('Error stopping sound:', e));
+            
+            // Ensuite décharger le son
+            await sound.unloadAsync().catch(e => console.warn('Error unloading sound:', e));
+            
+            // Réinitialiser l'état
+            set({
+              sound: null,
+              isPlaying: false,
+              playbackPosition: 0,
+            });
+            
+            console.log('Audio resources cleaned up successfully');
+          }
+        } catch (error) {
+          console.error('Error during cleanup:', error);
+        }
+      });
     }
   };
 }); 

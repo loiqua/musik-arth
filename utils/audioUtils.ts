@@ -163,3 +163,16 @@ const getContrastColor = (hex: string): string => {
   
   return luminance > 0.5 ? '#000000' : '#FFFFFF';
 };
+
+// Handle cleanup of music playback resources
+export const cleanupMusicPlayback = async () => {
+  try {
+    const { cleanup } = require('../store/musicStore').useMusicStore.getState();
+    if (typeof cleanup === 'function') {
+      await cleanup();
+      console.log('Music playback resources cleaned up');
+    }
+  } catch (error) {
+    console.error('Error cleaning up music playback:', error);
+  }
+};

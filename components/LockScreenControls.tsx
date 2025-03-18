@@ -24,6 +24,16 @@ const LockScreenControls: React.FC = () => {
   
   // Effet pour configurer les notifications et les écouteurs
   useEffect(() => {
+    // Set up notification handler for better background behavior
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: false,
+        shouldSetBadge: true,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+      }),
+    });
+    
     // Définir l'écouteur de réponse aux notifications
     notificationSubscription.current = Notifications.addNotificationResponseReceivedListener((response) => {
       const { actionIdentifier, notification } = response;
@@ -64,17 +74,35 @@ const LockScreenControls: React.FC = () => {
       if (notificationSubscription.current) {
         Notifications.removeNotificationSubscription(notificationSubscription.current);
       }
+      // Make sure to dismiss all notifications when component unmounts
+      Notifications.dismissAllNotificationsAsync();
     };
   }, [router, pauseTrack, resumeTrack, playNextTrack, playPreviousTrack]);
   
   // Effet pour mettre à jour la notification lorsque l'état de lecture change
   useEffect(() => {
-    if (!currentTrack) return;
+    if (!currentTrack) {
+      // Dismiss notifications if no track is playing
+      Notifications.dismissAllNotificationsAsync();
+      return;
+    }
     
     // Fonction pour afficher la notification avec les contrôles
     const showPlaybackNotification = async () => {
       try {
-        // Configurer la catégorie de notification avec les actions
+        // Create or update notification channels for Android
+        if (Platform.OS === 'android') {
+          await Notifications.setNotificationChannelAsync('playback', {
+            name: 'Playback Controls',
+            importance: Notifications.AndroidImportance.HIGH,
+            vibrationPattern: [0, 0, 0, 0], // No vibration
+            lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+            bypassDnd: true,
+            sound: null,
+          });
+        }
+        
+        // Configure the notification actions
         await Notifications.setNotificationCategoryAsync('playback', [
           {
             identifier: 'previous',
@@ -107,7 +135,7 @@ const LockScreenControls: React.FC = () => {
           ? currentTrack.artwork 
           : getPlaceholderArtwork(currentTrack.title, currentTrack.artist);
         
-        // Supprimer les notifications existantes
+        // Supprimer les notifications existantes pour éviter les doublons
         await Notifications.dismissAllNotificationsAsync();
         
         // Configurer les options spécifiques à iOS
@@ -132,7 +160,7 @@ const LockScreenControls: React.FC = () => {
               isPlaying
             },
             categoryIdentifier: 'playback',
-            priority: 'high',
+            priority: 'max',
             sticky: true,
             autoDismiss: false,
             badge: 1,
@@ -146,9 +174,12 @@ const LockScreenControls: React.FC = () => {
       }
     };
     
-    // Afficher la notification
-    showPlaybackNotification();
+    // Show the notification with a slight delay to avoid rapid updates
+    const timer = setTimeout(() => {
+      showPlaybackNotification();
+    }, 300);
     
+    return () => clearTimeout(timer);
   }, [currentTrack, isPlaying]);
   
   // Ce composant ne rend rien visuellement
