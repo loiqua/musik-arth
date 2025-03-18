@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dimensions,
   Keyboard,
@@ -11,7 +11,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
   Alert,
 } from 'react-native';
@@ -32,39 +31,40 @@ const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
   const isDark = colorScheme === 'dark';
   
   const [playlistName, setPlaylistName] = useState('');
-  const { createPlaylist, playlists } = useMusicStore(state => ({
-    createPlaylist: state.createPlaylist,
-    playlists: state.playlists
-  }));
+  const { createPlaylist, playlists } = useMusicStore();
+  
+  // Réinitialiser le nom de la playlist quand le modal se ferme
+  useEffect(() => {
+    if (!visible) {
+      setPlaylistName('');
+    }
+  }, [visible]);
   
   const textColor = isDark ? COLORS.textDark : COLORS.text;
   const backgroundColor = isDark ? COLORS.cardDark : COLORS.card;
   const placeholderTextColor = isDark ? COLORS.textSecondaryDark : COLORS.textSecondary;
   const borderColor = isDark ? COLORS.borderDark : COLORS.border;
   
-  const handleCreate = () => {
-    if (playlistName.trim()) {
-      // Vérifier si une playlist avec ce nom existe déjà
-      const playlistExists = playlists.some(
-        playlist => playlist.name.toLowerCase() === playlistName.trim().toLowerCase()
+  const handleCreate = useCallback(() => {
+    if (!playlistName.trim()) return;
+    
+    // Vérifier si une playlist avec ce nom existe déjà
+    const playlistExists = playlists.some(
+      playlist => playlist.name.toLowerCase() === playlistName.trim().toLowerCase()
+    );
+    
+    if (playlistExists) {
+      Alert.alert(
+        "Nom déjà utilisé",
+        `Une playlist nommée "${playlistName.trim()}" existe déjà. Veuillez choisir un autre nom.`,
+        [{ text: "OK" }]
       );
-      
-      if (playlistExists) {
-        Alert.alert(
-          "Nom déjà utilisé",
-          `Une playlist nommée "${playlistName.trim()}" existe déjà. Veuillez choisir un autre nom.`,
-          [
-            { text: "OK" }
-          ]
-        );
-        return;
-      }
-      
-      createPlaylist(playlistName.trim());
-      setPlaylistName('');
-      onClose();
+      return;
     }
-  };
+    
+    createPlaylist(playlistName.trim());
+    onClose();
+  }, [playlistName, playlists, createPlaylist, onClose]);
   
   return (
     <Modal

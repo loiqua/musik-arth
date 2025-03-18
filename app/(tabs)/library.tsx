@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -9,7 +9,8 @@ import {
   TouchableOpacity,
   View,
   SectionList,
-  Image
+  Image,
+  Keyboard
 } from 'react-native';
 import AddOnlineTrackModal from '../../components/AddOnlineTrackModal';
 import CreatePlaylistModal from '../../components/CreatePlaylistModal';
@@ -261,6 +262,19 @@ export default function LibraryScreen() {
     );
   };
   
+  // Fonction pour gérer l'ouverture du modal de création de playlist
+  const handleOpenCreatePlaylist = useCallback(() => {
+    Keyboard.dismiss();
+    setTimeout(() => {
+      setIsCreatePlaylistVisible(true);
+    }, 100);
+  }, []);
+  
+  // Fonction pour gérer la fermeture du modal de création de playlist
+  const handleCloseCreatePlaylist = useCallback(() => {
+    setIsCreatePlaylistVisible(false);
+  }, []);
+  
   if (!hasPermission) {
     return (
       <View style={[styles.container, { backgroundColor }]}>
@@ -313,7 +327,7 @@ export default function LibraryScreen() {
             
             <TouchableOpacity
               style={styles.headerButton}
-              onPress={() => setIsCreatePlaylistVisible(true)}
+              onPress={handleOpenCreatePlaylist}
             >
               <Ionicons name="add" size={24} color={COLORS.primary} />
             </TouchableOpacity>
@@ -474,12 +488,10 @@ export default function LibraryScreen() {
       {renderPlayerComponents()}
       
       {/* Modals - assurons-nous qu'ils sont exclusifs et ne s'affichent pas en même temps */}
-      {isCreatePlaylistVisible && (
-        <CreatePlaylistModal
-          visible={isCreatePlaylistVisible}
-          onClose={() => setIsCreatePlaylistVisible(false)}
-        />
-      )}
+      <CreatePlaylistModal
+        visible={isCreatePlaylistVisible}
+        onClose={handleCloseCreatePlaylist}
+      />
       
       {isAddOnlineTrackVisible && (
         <AddOnlineTrackModal
